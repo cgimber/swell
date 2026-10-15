@@ -1,0 +1,131 @@
+Dataset {
+    String sourceFilename[sourceCount = 8175];
+    Int32 waveTime[waveTime = 8175];
+    Int32 waveTimeBounds[waveTime = 8175][metaBoundsCount = 2];
+    Byte waveFlagPrimary[waveTime = 8175];
+    Byte waveFlagSecondary[waveTime = 8175];
+    Float32 waveHs[waveTime = 8175];
+    Float32 waveTp[waveTime = 8175];
+    Float32 waveTa[waveTime = 8175];
+    Float32 waveDp[waveTime = 8175];
+    Float32 wavePeakPSD[waveTime = 8175];
+    Float32 waveTz[waveTime = 8175];
+    Int32 waveSourceIndex[waveTime = 8175];
+    Float32 waveFrequency[waveFrequency = 64];
+    Float32 waveFrequencyBounds[waveFrequency = 64][metaBoundsCount = 2];
+    Byte waveFrequencyFlagPrimary[waveFrequency = 64];
+    Byte waveFrequencyFlagSecondary[waveFrequency = 64];
+    Float32 waveBandwidth[waveFrequency = 64];
+    Grid {
+     ARRAY:
+        Float32 waveEnergyDensity[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveEnergyDensity;
+    Grid {
+     ARRAY:
+        Float32 waveMeanDirection[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveMeanDirection;
+    Grid {
+     ARRAY:
+        Float32 waveA1Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveA1Value;
+    Grid {
+     ARRAY:
+        Float32 waveB1Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveB1Value;
+    Grid {
+     ARRAY:
+        Float32 waveA2Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveA2Value;
+    Grid {
+     ARRAY:
+        Float32 waveB2Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveB2Value;
+    Grid {
+     ARRAY:
+        Float32 waveCheckFactor[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveCheckFactor;
+    Grid {
+     ARRAY:
+        Float32 waveSpread[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveSpread;
+    Grid {
+     ARRAY:
+        Float32 waveM2Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveM2Value;
+    Grid {
+     ARRAY:
+        Float32 waveN2Value[waveTime = 8175][waveFrequency = 64];
+     MAPS:
+        Int32 waveTime[waveTime = 8175];
+        Float32 waveFrequency[waveFrequency = 64];
+    } waveN2Value;
+    Int32 sstTime[sstTime = 8175];
+    Int32 sstTimeBounds[sstTime = 8175][metaBoundsCount = 2];
+    Byte sstFlagPrimary[sstTime = 8175];
+    Byte sstFlagSecondary[sstTime = 8175];
+    Float32 sstSeaSurfaceTemperature[sstTime = 8175];
+    Int32 sstSourceIndex[sstTime = 8175];
+    Float32 sstReferenceTemp[sstTime = 8175];
+    Int32 gpsTime[gpsTime = 8175];
+    Int32 gpsTimeBounds[gpsTime = 8175][metaBoundsCount = 2];
+    Byte gpsStatusFlags[gpsTime = 8175];
+    Float32 gpsLatitude[gpsTime = 8175];
+    Float32 gpsLongitude[gpsTime = 8175];
+    Int32 gpsSourceIndex[gpsTime = 8175];
+    Int32 dwrTime[dwrTime = 8175];
+    Int32 dwrTimeBounds[dwrTime = 8175][metaBoundsCount = 2];
+    Int32 dwrSourceIndex[dwrTime = 8175];
+    Int32 dwrBatteryLevel[dwrTime = 8175];
+    Float32 dwrZAccelerometerOffset[dwrTime = 8175];
+    Float32 dwrXAccelerometerOffset[dwrTime = 8175];
+    Float32 dwrYAccelerometerOffset[dwrTime = 8175];
+    Float32 dwrOrientation[dwrTime = 8175];
+    Float32 dwrInclination[dwrTime = 8175];
+    Int32 dwrBatteryWeeksOfLife[dwrTime = 8175];
+    Int32 cat4Time[cat4Time = 8175];
+    Int32 cat4TimeBounds[cat4Time = 8175][metaBoundsCount = 2];
+    Byte cat4FlagPrimary[cat4Time = 8175];
+    Byte cat4FlagSecondary[cat4Time = 8175];
+    Float32 cat4AirTemperature[cat4Time = 8175];
+    Int32 cat4SourceIndex[cat4Time = 8175];
+    Byte cat4StatusFlags[cat4Time = 8175];
+    Float32 cat4WhiteTemperature[cat4Time = 8175];
+    Float32 cat4BlackTemperature[cat4Time = 8175];
+    Float32 cat4MetalTemperature[cat4Time = 8175];
+    Float32 cat4GroovedTemperature[cat4Time = 8175];
+    String metaStationName;
+    String metaPlatform;
+    String metaInstrumentation;
+    Float32 metaDeployLatitude;
+    Float32 metaDeployLongitude;
+    Float32 metaWaterDepth;
+    Float32 metaDeclination;
+    String metaGridMapping;
+} cdip/realtime/100p1_rt.nc;

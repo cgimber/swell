@@ -1,0 +1,30 @@
+# Fallback for DATA_SOURCE = "static" (src/config.js). Not needed while the
+# browser can query THREDDS directly. To enable: uncomment `schedule`, and set
+# DATA_SOURCE = 'static'.
+name: update-data
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '7,37 * * * *'   # every 30 min, offset from the top of the hour
+permissions:
+  contents: write
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/fetch-data.mjs
+      - name: Commit if changed
+        run: |
+          if [ -z "$(git status --porcelain data)" ]; then echo "No changes"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "data: update buoy records"
+          git push
