@@ -33,7 +33,7 @@ const rangesEl = $('ranges');
 for (const [key, r] of Object.entries(RANGES)) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.role = 'radio';
+  b.setAttribute('role', 'radio');
   b.dataset.range = key;
   b.textContent = r.label;
   b.addEventListener('click', () => { state.range = key; store.set('range', key); syncRangeButtons(); draw(); });
