@@ -27,6 +27,6 @@ jobs:
             N=$(echo "$dds" | grep -oE "waveTime\[waveTime = [0-9]+\]" | head -1 | grep -oE "[0-9]+")
             F=$(echo "$dds" | grep -oE "waveFrequency\[waveFrequency = [0-9]+\]" | head -1 | grep -oE "[0-9]+")
             L=$((N-1)); P=$((N-3)); FF=$((F-1))
-            curl -sS "$B/${s}_rt.nc.ascii?waveTime[$P:$L],waveHs[$P:$L],waveTp[$P:$L],waveDp[$P:$L],waveFlagPrimary[$P:$L],waveFrequency[0:$FF],waveBandwidth[0:$FF],waveEnergyDensity[$L][0:$FF],waveA1Value[$L][0:$FF],waveB1Value[$L][0:$FF],waveA2Value[$L][0:$FF],waveB2Value[$L][0:$FF],metaStationName"
+            curl -gsS "$B/${s}_rt.nc.ascii?waveTime[$P:$L],waveHs[$P:$L],waveTp[$P:$L],waveDp[$P:$L],waveFlagPrimary[$P:$L],waveFrequency[0:$FF],waveBandwidth[0:$FF],waveEnergyDensity[$L][0:$FF],waveA1Value[$L][0:$FF],waveB1Value[$L][0:$FF],waveA2Value[$L][0:$FF],waveB2Value[$L][0:$FF],metaStationName"
             echo
           done
