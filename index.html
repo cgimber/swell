@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+  <title>Swell Spectrum</title>
+  <meta name="description" content="Latest CDIP buoy directional wave spectrum as a polar plot.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header class="top">
+      <label class="station-picker">
+        <span class="visually-hidden">Station</span>
+        <select id="station"></select>
+      </label>
+      <button id="refresh" class="icon-btn" type="button" aria-label="Refresh">↻</button>
+    </header>
+
+    <section id="summary" class="summary" aria-live="polite">
+      <h1 id="station-name">—</h1>
+      <p id="times" class="times"></p>
+      <div id="stale" class="stale" hidden></div>
+      <dl class="stats">
+        <div><dt>Hs</dt><dd id="hs">—</dd></div>
+        <div><dt>Tp</dt><dd id="tp">—</dd></div>
+        <div><dt>Dp</dt><dd id="dp">—</dd></div>
+      </dl>
+    </section>
+
+    <div class="range-toggle" role="radiogroup" aria-label="Period range" id="ranges"></div>
+
+    <section class="plot-wrap">
+      <canvas id="plot" role="img" aria-label="Polar directional wave spectrum"></canvas>
+      <div id="status" class="status" role="status"></div>
+    </section>
+
+    <section class="colorbar" aria-label="Colour scale">
+      <div id="cbar" class="cbar"></div>
+      <div class="cbar-labels"><span id="cmin">0</span><span id="cmid"></span><span id="cmax"></span></div>
+      <p class="units">Energy density, m²/Hz/deg · angle = direction waves come <em>from</em> · radius = period</p>
+    </section>
+
+    <footer>
+      Data: <a href="https://cdip.ucsd.edu" rel="noopener">CDIP</a>, Scripps Institution of Oceanography.
+      MEM (Lygre &amp; Krogstad 1986). <span id="source-mode"></span>
+    </footer>
+  </main>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
