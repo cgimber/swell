@@ -94,7 +94,7 @@ select { width: 100%; padding: 0 12px; font-weight: 600; }
 .status.loading { color: var(--muted); }
 
 .colorbar { margin-top: 8px; }
-.cbar { height: 14px; border-radius: 7px; border: 1px solid var(--border); }
+.cbar { height: 14px; border-radius: 7px; border: 1px solid var(--border); background-color: var(--plot-bg); }
 .cbar-labels {
   display: flex; justify-content: space-between; font-size: 0.8rem;
   color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px;

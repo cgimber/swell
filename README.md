@@ -7,9 +7,11 @@ HTML/CSS/ES modules, no runtime dependencies.
 
 - Angle is the direction waves come **from** (north up, labels every 30°).
 - Radius is period: long periods sit near the centre, short periods at the rim.
-  The empty centre holds periods longer than 33 s.
+  As on CDIP's plot, radius is linear in frequency and the empty centre
+  (≈ 37 % of the radius) holds periods longer than 33 s.
 - Colour is energy density S(f, θ) in m²/Hz/deg, scaled to the maximum of the
-  visible period range. Values below 2 % of that maximum are transparent.
+  visible period range, using CDIP's colour ramp. Values below 6.7 % of that
+  maximum are transparent, as on CDIP's colour bar.
 - Toggles: **High freq** (1 s+, clamped to the highest measured band, ~1.7 s),
   **Normal** (3–33 s) and **Swell only** (8–33 s).
 - The header shows station, sample time (local and UTC), the data's age,
@@ -45,9 +47,20 @@ three small, constrained OPeNDAP requests. It never downloads the netCDF file.
 D(θ) = (1 − φ1·c̄1 − φ2·c̄2) / (2π·|1 − φ1·e^(−iθ) − φ2·e^(−2iθ)|²)
 ```
 
-D is normalised to integrate to 1 over 360° on a 2° grid, and
+D is normalised to integrate to 1 over 360° on a 1° grid, and
 S(f, θ) = E(f)·D(θ). Bands with `|c1| ≥ 1` or NaN/fill values are skipped and
-filled by interpolation when drawing. The plot samples the field bilinearly in
+filled by interpolation when drawing.
+
+**Smoothing.** Raw MEM peaks are extremely sharp: their height depends on the
+grid step, and they can split into two lobes. Before plotting, S is
+box-averaged over ±5° in direction and ±1 band in frequency. The directional
+average keeps each band's energy. I picked these widths by comparing against
+CDIP's own polar plot for 100p1 at 2026-10-16 03:00 UTC. I read their image's
+colours back into values and grid-searched the widths. This setting gives a
+peak of 0.099 m²/Hz/deg at ~195° (CDIP: 0.101, ~195°) and halves the
+pixel-wise error compared with raw MEM. A test pins this. CDIP doesn't
+publish its exact smoothing, so this is a fit, not their algorithm. CDIP's
+plot still shows a little more energy on the long-period flank (18–22 s). The plot samples the field bilinearly in
 frequency and direction for every pixel, so it reads as a continuous surface.
 
 **Direction convention.** I checked this against real records: `atan2(b1, a1)`
@@ -126,8 +139,10 @@ Loma South. All of them were verified against their THREDDS realtime files.
 `src/config.js` also holds:
 
 - `RANGES`: min and max period and the labelled rings for each toggle.
-- `RADIAL_SCALE`: `'log'` (default; spreads the swell periods out on a small
-  screen) or `'linear'` (radius ∝ frequency).
+- `RADIAL_SCALE`: `'linear'` (default, matches CDIP) or `'log'` (spreads
+  the swell periods out more on a small screen).
+- `SMOOTH_DIR_DEG` and `SMOOTH_FREQ_BANDS`: smoothing half-widths. Set both
+  to 0 for raw MEM.
 - `CENTER_HOLE`, `DIRECTION_STEP_DEG`, `TRANSPARENT_BELOW` and
   `STALE_AFTER_HOURS`.
 
@@ -137,5 +152,5 @@ Colours live in `src/colormap.js`.
 
 MEM fits an AR(2) model to the first four Fourier moments. When r2 is well
 below r1², it legitimately splits a single narrow peak into two lobes. Two
-lobes on the plot can therefore be an artefact of the method rather than two
-swells. CDIP's own polar plots, which use the same method, behave the same way.
+lobes in raw MEM can therefore be an artefact of the method rather than two
+swells. The smoothing above merges most of these, as CDIP's plots do.

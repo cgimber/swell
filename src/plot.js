@@ -162,6 +162,17 @@ export function renderPolar(canvas, { field, range, frequency, bandwidth, dp }) 
   ctx.strokeStyle = fg;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
 
+  // period range in the empty centre, as on CDIP's plot
+  if (r0 > font * 2.2) {
+    const lo = 1 / fHi;
+    const loTxt = lo < 2 ? lo.toFixed(1) : Math.round(lo);
+    ctx.fillStyle = fg;
+    ctx.font = `${Math.round(font * 0.8)}px system-ui, sans-serif`;
+    ctx.fillText('Period range', cx, cy - font * 0.55);
+    ctx.font = `600 ${Math.round(font * 0.95)}px system-ui, sans-serif`;
+    ctx.fillText(`${loTxt}–${range.maxPeriod} s`, cx, cy + font * 0.6);
+  }
+
   // spokes + compass labels every 30°
   ctx.strokeStyle = grid;
   ctx.font = `${font}px system-ui, sans-serif`;

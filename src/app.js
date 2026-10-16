@@ -1,8 +1,9 @@
 import {
   STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, DIRECTION_STEP_DEG, STALE_AFTER_HOURS, DATA_SOURCE,
+  SMOOTH_DIR_DEG, SMOOTH_FREQ_BANDS,
 } from './config.js';
 import { loadStation } from './dataSource.js';
-import { directionalSpectrum } from './mem.js';
+import { directionalSpectrum, smoothSpectrum } from './mem.js';
 import { prepareField, renderPolar } from './plot.js';
 import { cssGradient } from './colormap.js';
 
@@ -45,7 +46,7 @@ function syncRangeButtons() {
 syncRangeButtons();
 
 $('refresh').addEventListener('click', () => load());
-$('cbar').style.background = cssGradient();
+$('cbar').style.backgroundImage = cssGradient();
 $('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
 
 // ── loading ────────────────────────────────────────────────────────────────
@@ -68,7 +69,9 @@ async function load() {
     const rec = await loadStation(state.station);
     if (seq !== state.loadSeq) return;
     state.rec = rec;
-    state.field = prepareField(directionalSpectrum(rec, DIRECTION_STEP_DEG), rec.frequency);
+    const spec = smoothSpectrum(directionalSpectrum(rec, DIRECTION_STEP_DEG),
+      { dirHalfDeg: SMOOTH_DIR_DEG, freqHalf: SMOOTH_FREQ_BANDS });
+    state.field = prepareField(spec, rec.frequency);
     if (!state.field) throw new Error('No usable spectral bands in the latest record');
     setStatus('');
     updateSummary();

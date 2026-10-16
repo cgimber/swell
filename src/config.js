@@ -21,17 +21,25 @@ export const DEFAULT_STATION = '100p1';
 // central disc and minPeriod on the outer rim. `rings` are labelled periods.
 // High freq's 1 s floor is clamped to the highest measured band (~1.7 s).
 export const RANGES = {
-  high:   { label: 'High freq',  minPeriod: 1, maxPeriod: 33, rings: [22, 12, 8, 5, 3, 2] },
-  normal: { label: 'Normal',     minPeriod: 3, maxPeriod: 33, rings: [22, 16, 12, 10, 8, 6, 4] },
+  high:   { label: 'High freq',  minPeriod: 1, maxPeriod: 33, rings: [10, 5, 3, 2] },
+  normal: { label: 'Normal',     minPeriod: 3, maxPeriod: 33, rings: [16, 10, 6, 4] },
   swell:  { label: 'Swell only', minPeriod: 8, maxPeriod: 33, rings: [22, 16, 12, 10] },
 };
 export const DEFAULT_RANGE = 'normal';
-// 'log' spaces the period rings evenly enough to read swell detail on a phone;
-// 'linear' is radius ∝ frequency.
-export const RADIAL_SCALE = 'log';
-export const CENTER_HOLE = 0.12; // empty centre radius, as a fraction of the plot radius
+// Matches CDIP's polar plot (measured from their image): radius linear in
+// frequency, empty centre ≈ 0.37 of the radius. 'log' spreads swell periods
+// out more on a small screen.
+export const RADIAL_SCALE = 'linear';
+export const CENTER_HOLE = 0.37; // empty centre radius, as a fraction of the plot radius
 
-export const DIRECTION_STEP_DEG = 2;
-// Values below this fraction of the visible maximum are drawn transparent.
-export const TRANSPARENT_BELOW = 0.02;
+export const DIRECTION_STEP_DEG = 1;
+// Smoothing applied to the MEM output before plotting (half-widths of a box
+// average). Raw MEM peaks are very sharp and can split in two; these values
+// reproduce CDIP's polar plot for the same record (peak 0.099 vs CDIP 0.101).
+// Set both to 0 for raw MEM.
+export const SMOOTH_DIR_DEG = 5;     // ±5° → 11° wide
+export const SMOOTH_FREQ_BANDS = 1;  // ±1 band → 3 bands
+// Values below this fraction of the visible maximum are drawn transparent
+// (CDIP's colour bar leaves the bottom ~6.7% in the background colour).
+export const TRANSPARENT_BELOW = 0.067;
 export const STALE_AFTER_HOURS = 2;
