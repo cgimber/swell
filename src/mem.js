@@ -81,6 +81,42 @@ export function directionalSpectrum(rec, stepDeg = 2) {
   return { dirs, step: stepDeg, S };
 }
 
+/**
+ * Box-average S(f,θ) over ±dirHalfDeg in direction (circular) and ±freqHalf
+ * bands in frequency, skipping null (unusable) bands. The directional average
+ * preserves each band's total energy.
+ */
+export function smoothSpectrum(spec, { dirHalfDeg = 0, freqHalf = 0 } = {}) {
+  const n = spec.dirs.length;
+  const h = Math.round(dirHalfDeg / spec.step);
+  const byDir = spec.S.map((row) => {
+    if (!row || h === 0) return row;
+    const out = new Float64Array(n);
+    let sum = 0;
+    for (let j = -h; j <= h; j++) sum += row[(j + n) % n];
+    for (let k = 0; k < n; k++) {
+      out[k] = sum / (2 * h + 1);
+      sum += row[(k + h + 1) % n] - row[(k - h + n) % n];
+    }
+    return out;
+  });
+  if (freqHalf === 0) return { ...spec, S: byDir };
+  const S = byDir.map((row, i) => {
+    if (!row) return row;
+    const out = new Float64Array(n);
+    let w = 0;
+    for (let j = -freqHalf; j <= freqHalf; j++) {
+      const q = byDir[i + j];
+      if (!q) continue;
+      w++;
+      for (let k = 0; k < n; k++) out[k] += q[k];
+    }
+    for (let k = 0; k < n; k++) out[k] /= w;
+    return out;
+  });
+  return { ...spec, S };
+}
+
 /** Index of the frequency band with maximum energy (ignores non-finite). */
 export function peakIndex(energy) {
   let best = -1, bv = -Infinity;
