@@ -7,13 +7,13 @@ HTML/CSS/ES modules, no runtime dependencies.
 
 - Angle is the direction waves come **from** (north up, labels every 30°).
 - Radius is period: long periods sit near the centre, short periods at the rim.
-  As on CDIP's plot, radius is linear in frequency and the empty centre
-  (≈ 37 % of the radius) holds periods longer than 33 s.
-- Colour is energy density S(f, θ) in m²/Hz/deg, scaled to the maximum of the
-  visible period range, using CDIP's colour ramp. Values below 6.7 % of that
-  maximum are transparent, as on CDIP's colour bar.
-- Toggles: **High freq** (1 s+, clamped to the highest measured band, ~1.7 s),
-  **Normal** (3–33 s) and **Swell only** (8–33 s).
+  The layout matches CDIP's: radius is linear in frequency, and periods longer
+  than 33 s are left blank, giving an empty centre.
+- Colour is energy density S(f, θ) in m²/Hz/deg, using CDIP's colour ramp.
+  The scale runs to the maximum of the whole spectrum, as on CDIP's plot, so it
+  stays the same when you switch ranges.
+- Toggles, as on CDIP: **High freq** (1–33 s, rim at 0.74 Hz),
+  **Normal** (3–33 s) and **Swell only** (8–33 s, rim at 0.12 Hz).
 - The header shows station, sample time (local and UTC), the data's age,
   Hs (ft and m), Tp and Dp. A pink marker on the rim shows Dp. Data older than
   2 hours gets a warning.
@@ -23,7 +23,7 @@ HTML/CSS/ES modules, no runtime dependencies.
 ```
 index.html ─ src/app.js ─┬─ src/dataSource.js ─┬─ "direct": src/opendap.js → CDIP THREDDS
                          │                      └─ "static": data/<station>.json
-                         ├─ src/mem.js      Maximum Entropy Method → S(f,θ)
+                         ├─ src/mem.js      rebin → Maximum Entropy Method → S(f,θ)
                          └─ src/plot.js     canvas polar plot (+ src/colormap.js)
 ```
 
@@ -51,17 +51,30 @@ D is normalised to integrate to 1 over 360° on a 1° grid, and
 S(f, θ) = E(f)·D(θ). Bands with `|c1| ≥ 1` or NaN/fill values are skipped and
 filled by interpolation when drawing.
 
-**Smoothing.** Raw MEM peaks are extremely sharp: their height depends on the
-grid step, and they can split into two lobes. Before plotting, S is
-box-averaged over ±5° in direction and ±1 band in frequency. The directional
-average keeps each band's energy. I picked these widths by comparing against
-CDIP's own polar plot for 100p1 at 2026-10-16 03:00 UTC. I read their image's
-colours back into values and grid-searched the widths. This setting gives a
-peak of 0.099 m²/Hz/deg at ~195° (CDIP: 0.101, ~195°) and halves the
-pixel-wise error compared with raw MEM. A test pins this. CDIP doesn't
-publish its exact smoothing, so this is a fit, not their algorithm. CDIP's
-plot still shows a little more energy on the long-period flank (18–22 s). The plot samples the field bilinearly in
-frequency and direction for every pixel, so it reads as a continuous surface.
+**Matching CDIP's polar plot exactly.** CDIP publishes its 2-D spectrum through
+[`MEM_2dspectra.cdip`](https://cdip.ucsd.edu/data_access/MEM_2dspectra.cdip?h).
+Their polar plot is that output with the `even` option. The page reproduces it
+in `cdipSpectrum()` (`src/mem.js`):
+
+1. Rebin the buoy's bands onto even 0.01 Hz bands centred at 0.03, 0.04, … Hz.
+   Each native band contributes by overlap. Energy is overlap-averaged, and
+   a1/b1/a2/b2 are energy-weighted. This merges the narrow 0.005 Hz swell bands
+   in pairs, which is the main reason CDIP's peaks are lower than raw MEM.
+2. Run MEM on a 1° grid, then average into 5° direction bins.
+3. Scale colours to the maximum of the whole spectrum.
+4. Map a value v (as a fraction of that maximum) to position
+   0.09 + 0.91·v on the colour ramp, and leave values below 2.2 % blank. Weak
+   energy therefore still shows as dark blue and the peak stands out.
+5. Interpolate bilinearly between band centres and 5° bins for every pixel.
+
+Steps 1 and 2 match CDIP's published matrices cell for cell. I checked 27
+records, Datawell Mk3 (64 bands) and DWR4 (100 bands), and the tests pin two of
+them. The colour-bar maximum equals CDIP's printed label on all 26 plots
+checked. CDIP doesn't document the colour mapping in step 4, so I fitted it
+against 52 CDIP plot images (26 stations, Swell and Normal ranges). It agrees on
+99.7 % of pixels about whether a pixel is coloured, and within one colour step
+where both are. I measured the plot geometry from the ring positions on CDIP's
+images: radius = R·(0.166 + 0.834·f/f_max).
 
 **Direction convention.** I checked this against real records: `atan2(b1, a1)`
 at the peak band equals `waveDp`, the nautical direction waves come from, in
@@ -138,13 +151,13 @@ Loma South. All of them were verified against their THREDDS realtime files.
 
 `src/config.js` also holds:
 
-- `RANGES`: min and max period and the labelled rings for each toggle.
-- `RADIAL_SCALE`: `'linear'` (default, matches CDIP) or `'log'` (spreads
-  the swell periods out more on a small screen).
-- `SMOOTH_DIR_DEG` and `SMOOTH_FREQ_BANDS`: smoothing half-widths. Set both
-  to 0 for raw MEM.
-- `CENTER_HOLE`, `DIRECTION_STEP_DEG`, `TRANSPARENT_BELOW` and
-  `STALE_AFTER_HOURS`.
+- `RANGES`: period limits, rim frequency (`maxFreq`) and labelled rings for
+  each toggle. `INNER_OFFSET` sets the radius of f = 0.
+- `EVEN_BAND_HZ` and `DIR_BIN_DEG`: CDIP's rebinning (0.01 Hz, 5°). Set them to
+  `0` and `1` for raw, full-resolution MEM, which gives much sharper and higher
+  peaks.
+- `SCALE_MAX`: `'spectrum'` (CDIP) or `'visible'` (rescale to the shown range).
+- `COLOR_FLOOR`, `TRANSPARENT_BELOW` and `STALE_AFTER_HOURS`.
 
 Colours live in `src/colormap.js`.
 
@@ -153,4 +166,4 @@ Colours live in `src/colormap.js`.
 MEM fits an AR(2) model to the first four Fourier moments. When r2 is well
 below r1², it legitimately splits a single narrow peak into two lobes. Two
 lobes in raw MEM can therefore be an artefact of the method rather than two
-swells. The smoothing above merges most of these, as CDIP's plots do.
+swells. CDIP's plots, which use the same method, show the same lobes.

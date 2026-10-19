@@ -72,39 +72,44 @@ for (const st of ['100p1', '153p1', '191p1', '201p1', '220p1']) {
   });
 }
 
-test('smoothSpectrum keeps band energy and lowers sharp peaks', async () => {
-  const { smoothSpectrum } = await import('../src/mem.js');
-  const [a1, b1, a2, b2] = moments(200, 0.95, 0.85);
-  const rec = { frequency: [0.06, 0.065, 0.07], energy: [1, 2, 1], a1: [a1, a1, a1], b1: [b1, b1, b1], a2: [a2, a2, a2], b2: [b2, b2, b2] };
-  const raw = directionalSpectrum(rec, 1);
-  const sm = smoothSpectrum(raw, { dirHalfDeg: 5, freqHalf: 0 });
-  sm.S.forEach((row, i) => {
-    assert.ok(Math.abs(row.reduce((s, v) => s + v, 0) - rec.energy[i]) < 1e-9, 'directional smoothing conserves energy');
-    assert.ok(Math.max(...row) < Math.max(...raw.S[i]));
-    assert.equal(dirs[argmax(row)], dirs[argmax(raw.S[i])]);
-  });
-  const both = smoothSpectrum(raw, { dirHalfDeg: 0, freqHalf: 1 });
-  assert.ok(Math.abs(both.S[1][200] - (raw.S[0][200] + raw.S[1][200] + raw.S[2][200]) / 3) < 1e-12);
-  assert.ok(Math.abs(both.S[0][200] - (raw.S[0][200] + raw.S[1][200]) / 2) < 1e-12, 'edges average available bands');
-});
+// CDIP's polar plot is MEM on the spectrum rebinned to even 0.01 Hz bands,
+// averaged into 5° direction bins. Fixtures are CDIP's own output from
+// https://cdip.ucsd.edu/data_access/MEM_2dspectra.cdip?sp<stn>01<YYYYMMDDHHMM>+even
+// for the same records (rows 0.03…0.58 Hz, columns centred 5…360°).
+const readCdipMatrix = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
+  .replace(/<\/?pre>/g, '').trim().split('\n').map((l) => l.trim().split(/\s+/).map(Number));
 
-// Reference: CDIP's own polar plot for 100p1 at 2026-10-16 03:00 UTC, swell
-// range (8–33 s). Its colour bar tops out at 0.103 m²/Hz/deg and the peak sits
-// at ~195° between the 16 s and 12 s rings (values read back from the image's
-// colours: 0.101 at 14.3 s, 195°).
-test('smoothed MEM reproduces CDIP polar plot peak for a real record', async () => {
-  const { smoothSpectrum } = await import('../src/mem.js');
-  const { hydrateRecord } = await import('../src/opendap.js');
-  const { SMOOTH_DIR_DEG, SMOOTH_FREQ_BANDS } = await import('../src/config.js');
-  const rec = hydrateRecord(JSON.parse(readFileSync(new URL('./fixtures/100p1-20261016T0300.json', import.meta.url), 'utf8')));
-  const sp = smoothSpectrum(directionalSpectrum(rec, 1), { dirHalfDeg: SMOOTH_DIR_DEG, freqHalf: SMOOTH_FREQ_BANDS });
-  let max = 0, at = null;
-  sp.S.forEach((row, i) => {
-    const f = rec.frequency[i];
-    if (!row || f < 1 / 33 || f > 1 / 8) return;
-    row.forEach((v, k) => { if (v > max) { max = v; at = { T: 1 / f, dir: sp.dirs[k] }; } });
+for (const [recFile, memFile, plotMax] of [
+  ['100p1-20261016T0300.json', 'cdip-mem-even-100p1-20261016T0300.txt', 0.103], // Datawell Mk3, 64 bands
+  ['094p1-20261019T0200.json', 'cdip-mem-even-094p1-20261019T0200.txt', 0.283], // DWR4, 100 bands
+]) {
+  test(`cdipSpectrum reproduces CDIP's MEM_2dspectra output (${recFile})`, async () => {
+    const { cdipSpectrum } = await import('../src/mem.js');
+    const { hydrateRecord } = await import('../src/opendap.js');
+    const rec = hydrateRecord(JSON.parse(readFileSync(new URL(`./fixtures/${recFile}`, import.meta.url), 'utf8')));
+    const M = readCdipMatrix(memFile);
+    const { rec: even, spec } = cdipSpectrum(rec, { evenBandHz: 0.01, dirBinDeg: 5 });
+    assert.ok(even.frequency.length >= M.length);
+    assert.ok(Math.abs(even.frequency[0] - 0.03) < 1e-9 && Math.abs(even.frequency[55] - 0.58) < 1e-9);
+    let cdipMax = 0, myMax = 0;
+    M.forEach((row, i) => row.forEach((c, j) => {
+      const mine = spec.S[i][(j + 1) % 72]; // CDIP column j is centred at 5(j+1)°; ours index k ↔ 5k°
+      cdipMax = Math.max(cdipMax, c); myMax = Math.max(myMax, mine);
+      if (c > 0.002) assert.ok(Math.abs(mine - c) / c < 0.005, `f=${even.frequency[i]} dir=${5 * (j + 1)}: ${mine} vs CDIP ${c}`);
+      else assert.ok(Math.abs(mine - c) < 1e-5);
+    }));
+    assert.ok(Math.abs(myMax - cdipMax) < 1e-4);
+    // CDIP's plot colour bar tops out at this matrix's maximum
+    assert.ok(Math.abs(myMax - plotMax) < 0.0006, `max ${myMax} vs plot label ${plotMax}`);
   });
-  assert.ok(Math.abs(max - 0.101) / 0.101 < 0.15, `peak ${max.toFixed(4)} vs CDIP 0.101`);
-  assert.ok(Math.abs(angleDiff(at.dir, 195)) <= 10, `peak dir ${at.dir} vs CDIP ~195`);
-  assert.ok(at.T > 12 && at.T < 17, `peak period ${at.T.toFixed(1)} s`);
+}
+
+test('binDirections averages 1° MEM into bins centred on multiples of the bin width', async () => {
+  const { binDirections } = await import('../src/mem.js');
+  const row = Float64Array.from({ length: 360 }, (_, k) => k);
+  const b = binDirections({ dirs, step: 1, S: [row, null] }, 5);
+  assert.equal(b.S[0].length, 72);
+  assert.equal(b.S[0][1], (3 + 4 + 5 + 6 + 7) / 5);
+  assert.equal(b.S[0][0], (358 + 359 + 0 + 1 + 2) / 5);
+  assert.equal(b.S[1], null);
 });

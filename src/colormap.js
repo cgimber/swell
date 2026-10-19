@@ -1,11 +1,10 @@
 // Jet-like ramp matching CDIP's polar-plot colour bar (sampled from their
 // image): dark blue → blue → cyan → green → yellow → red → near-black,
-// piecewise linear in RGB. Positions are fractions of the visible maximum;
-// below the first stop the plot is transparent (CDIP: background colour).
-import { TRANSPARENT_BELOW } from './config.js';
+// piecewise linear in RGB. Positions are along the ramp (0–1).
+import { TRANSPARENT_BELOW, COLOR_FLOOR } from './config.js';
 
 export const STOPS = [
-  [TRANSPARENT_BELOW, [0, 0, 107]],
+  [21 / 310, [0, 0, 107]],
   [0.165, [0, 0, 255]],
   [0.33, [0, 250, 255]],
   [0.5, [0, 127, 0]],
@@ -28,9 +27,19 @@ export function buildLut(stops = STOPS) {
   return lut;
 }
 
-/** CSS gradient for the colour bar; the sub-threshold part is left transparent. */
+/** Ramp position for a value given as a fraction of the scale max; NaN = not drawn. */
+export function rampPosition(v) {
+  return v >= TRANSPARENT_BELOW ? Math.min(1, COLOR_FLOOR + (1 - COLOR_FLOOR) * v) : NaN;
+}
+
+/** CSS gradient for the colour bar, drawn with the same mapping as the plot. */
 export function cssGradient(stops = STOPS) {
-  const pct = (t) => `${(t * 100).toFixed(1)}%`;
-  return `linear-gradient(to right, transparent ${pct(stops[0][0])}, ${stops
-    .map(([t, c]) => `rgb(${c.join(',')}) ${pct(t)}`).join(', ')})`;
+  const lut = buildLut(stops);
+  const parts = [`transparent ${(TRANSPARENT_BELOW * 100).toFixed(1)}%`];
+  for (let i = 0; i <= 40; i++) {
+    const v = TRANSPARENT_BELOW + ((1 - TRANSPARENT_BELOW) * i) / 40;
+    const li = Math.round(rampPosition(v) * 255) * 3;
+    parts.push(`rgb(${lut[li]},${lut[li + 1]},${lut[li + 2]}) ${(v * 100).toFixed(1)}%`);
+  }
+  return `linear-gradient(to right, ${parts.join(', ')})`;
 }

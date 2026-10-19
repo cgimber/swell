@@ -16,30 +16,33 @@ export const STATIONS = [
 ];
 export const DEFAULT_STATION = '100p1';
 
-// ── Plot ranges (periods in seconds) ───────────────────────────────────────
-// Radius grows with frequency: maxPeriod (33 s) sits on the edge of an empty
-// central disc and minPeriod on the outer rim. `rings` are labelled periods.
-// High freq's 1 s floor is clamped to the highest measured band (~1.7 s).
+// ── Plot ranges ─────────────────────────────────────────────────────────────
+// Same layout as CDIP's polar plot (measured from their images): radius is
+// linear in frequency, r = R·(INNER_OFFSET + (1 − INNER_OFFSET)·f/maxFreq), and
+// nothing is drawn for periods longer than maxPeriod (33 s), which leaves an
+// empty centre. maxFreq matches CDIP's xmax_freq for each button; `rings` are
+// the periods CDIP labels.
 export const RANGES = {
-  high:   { label: 'High freq',  minPeriod: 1, maxPeriod: 33, rings: [10, 5, 3, 2] },
-  normal: { label: 'Normal',     minPeriod: 3, maxPeriod: 33, rings: [16, 10, 6, 4] },
-  swell:  { label: 'Swell only', minPeriod: 8, maxPeriod: 33, rings: [22, 16, 12, 10] },
+  high:   { label: 'High freq',  minPeriod: 1, maxPeriod: 33, maxFreq: 0.74, rings: [12, 6, 4, 2] },
+  normal: { label: 'Normal',     minPeriod: 3, maxPeriod: 33, maxFreq: 1 / 3, rings: [20, 12, 8, 6, 4] },
+  swell:  { label: 'Swell only', minPeriod: 8, maxPeriod: 33, maxFreq: 0.12, rings: [22, 16, 12, 10] },
 };
 export const DEFAULT_RANGE = 'normal';
-// Matches CDIP's polar plot (measured from their image): radius linear in
-// frequency, empty centre ≈ 0.37 of the radius. 'log' spreads swell periods
-// out more on a small screen.
-export const RADIAL_SCALE = 'linear';
-export const CENTER_HOLE = 0.37; // empty centre radius, as a fraction of the plot radius
+export const INNER_OFFSET = 29 / 175; // radius of f = 0, as a fraction of the plot radius
 
-export const DIRECTION_STEP_DEG = 1;
-// Smoothing applied to the MEM output before plotting (half-widths of a box
-// average). Raw MEM peaks are very sharp and can split in two; these values
-// reproduce CDIP's polar plot for the same record (peak 0.099 vs CDIP 0.101).
-// Set both to 0 for raw MEM.
-export const SMOOTH_DIR_DEG = 5;     // ±5° → 11° wide
-export const SMOOTH_FREQ_BANDS = 1;  // ±1 band → 3 bands
-// Values below this fraction of the visible maximum are drawn transparent
-// (CDIP's colour bar leaves the bottom ~6.7% in the background colour).
-export const TRANSPARENT_BELOW = 0.067;
+// ── Spectrum processing (reproduces CDIP's polar plot exactly) ──────────────
+// CDIP rebins the buoy's bands to even 0.01 Hz bands (energy-weighted moments),
+// runs MEM, and averages into 5° direction bins (MEM_2dspectra.cdip "+even").
+// Set EVEN_BAND_HZ = 0 and DIR_BIN_DEG = 1 for raw, full-resolution MEM.
+export const EVEN_BAND_HZ = 0.01;
+export const DIR_BIN_DEG = 5;
+// Colour scale maximum: 'spectrum' = max over the whole spectrum (CDIP: the
+// same scale for every range button), 'visible' = max within the shown range.
+export const SCALE_MAX = 'spectrum';
+// Colour mapping, fitted to CDIP's plots (52 images, 26 stations; 99.7 % pixel agreement):
+// a value v (as a fraction of the scale maximum) is drawn with the colour at
+// COLOR_FLOOR + (1 − COLOR_FLOOR)·v along the ramp, so weak energy still shows
+// as dark blue; values below TRANSPARENT_BELOW are not drawn.
+export const COLOR_FLOOR = 0.09;
+export const TRANSPARENT_BELOW = 0.022;
 export const STALE_AFTER_HOURS = 2;
