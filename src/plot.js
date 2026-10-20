@@ -185,9 +185,9 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
   const onEdge = (deg) => gap && (deg % 360 === g0 % 360 || deg % 360 === g1 % 360);
   ctx.lineWidth = dpr;
   ctx.setLineDash([dpr, 3 * dpr]);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
   for (let a = 0; a < 360; a += 15) if (a % 45 && !inGap(a, gap) && !onEdge(a)) spoke(a);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
   for (let a = 0; a < 360; a += 45) if (!inGap(a, gap) && !onEdge(a)) spoke(a);
   const rings = range.rings.filter((p) => 1 / p > fLo && 1 / p < fHi);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
@@ -215,13 +215,13 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     }
   }
 
-  // compass labels every 30° around the plotted sector (none inside the gap)
+  // labels on the major axes only (every 45°), none inside the gap
   ctx.fillStyle = fg;
   ctx.textAlign = 'center';
   ctx.font = `500 ${font}px ${FONT}`;
   const names = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
-  for (let a = 0; a < 360; a += 30) {
-    if (inGap(a, gap) && !onEdge(a)) continue;
+  for (let a = 0; a < 360; a += 45) {
+    if (gap && a !== g0 % 360 && (inGap(a, gap) || a === g1 % 360)) continue; // gap start (N) keeps its label
     const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.fillText(names[a] ?? `${a}°`, cx + (R + margin * 0.5) * s, cy + (R + margin * 0.5) * c);
   }

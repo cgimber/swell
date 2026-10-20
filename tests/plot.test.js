@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareField, sampleField, visibleMax, rangeLimits } from '../src/plot.js';
-import { RANGES } from '../src/config.js';
+import { RANGE } from '../src/config.js';
 
 const row = (v) => Float64Array.from({ length: 180 }, () => v);
 const dirs = Array.from({ length: 180 }, (_, i) => i * 2);
@@ -26,11 +26,14 @@ test('visibleMax only looks at the visible frequency range', () => {
 
 test('range limits and radius match CDIP geometry', async () => {
   const { radialScale } = await import('../src/plot.js');
-  // Ring radii measured on CDIP's 350 px plots (centre 175, rim 175 px)
-  const cases = [['swell', [[22, 84], [16, 105], [12, 130], [10, 150]]], ['normal', [[20, 51], [12, 66], [8, 84], [6, 103], [4, 139]]],
-    ['high', [[20, 39], [12, 46], [8, 54], [6, 62], [4, 78], [2, 127]]]];
-  for (const [key, rings] of cases) {
-    const { fLo, fHi } = rangeLimits(RANGES[key]);
+  // Ring radii measured on CDIP's 350 px plots (centre 175, rim 175 px).
+  // Normal / High freq geometry kept as checks of the same radius formula.
+  const cases = [[RANGE, [[22, 84], [16, 105], [12, 130], [10, 150]]],
+    [{ maxPeriod: 33, maxFreq: 1 / 3 }, [[20, 51], [12, 66], [8, 84], [6, 103], [4, 139]]],
+    [{ maxPeriod: 33, maxFreq: 0.74 }, [[20, 39], [12, 46], [8, 54], [6, 62], [4, 78], [2, 127]]]];
+  for (const [range, rings] of cases) {
+    const key = range.maxFreq;
+    const { fLo, fHi } = rangeLimits(range);
     assert.ok(Math.abs(fLo - 1 / 33) < 1e-12);
     const m = radialScale(fHi, 175);
     for (const [T, r] of rings) assert.ok(Math.abs(m.fToR(1 / T) - r) < 2.5, `${key} ${T}s: ${m.fToR(1 / T).toFixed(1)} vs ${r}`);

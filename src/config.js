@@ -25,18 +25,15 @@ export const DEFAULT_STATION = '100p1';
 export const DEFAULT_GAP = [0, 135];
 export const GAP_WARN_FRACTION = 0.05;
 
-// ── Plot ranges ─────────────────────────────────────────────────────────────
-// Same layout as CDIP's polar plot (measured from their images): radius is
+// ── Plot range ──────────────────────────────────────────────────────────────
+// CDIP's "Swell only" view (layout measured from their images): radius is
 // linear in frequency, r = R·(INNER_OFFSET + (1 − INNER_OFFSET)·f/maxFreq), and
 // nothing is drawn for periods longer than maxPeriod (33 s), which leaves an
-// empty centre. maxFreq matches CDIP's xmax_freq for each button; `rings` are
-// the periods CDIP labels.
-export const RANGES = {
-  high:   { label: 'High freq',  minPeriod: 1, maxPeriod: 33, maxFreq: 0.74, rings: [12, 6, 4, 2] },
-  normal: { label: 'Normal',     minPeriod: 3, maxPeriod: 33, maxFreq: 1 / 3, rings: [20, 12, 8, 6, 4] },
-  swell:  { label: 'Swell only', minPeriod: 8, maxPeriod: 33, maxFreq: 0.12, rings: [22, 16, 12, 10] },
-};
-export const DEFAULT_RANGE = 'normal';
+// empty centre. maxFreq is CDIP's xmax_freq; `rings` are the periods CDIP
+// labels. CDIP's other views, for reference:
+//   High freq: minPeriod 1, maxFreq 0.74, rings [12, 6, 4, 2]
+//   Normal:    minPeriod 3, maxFreq 1/3,  rings [20, 12, 8, 6, 4]
+export const RANGE = { minPeriod: 8, maxPeriod: 33, maxFreq: 0.12, rings: [22, 16, 12, 10] };
 export const INNER_OFFSET = 29 / 175; // radius of f = 0, as a fraction of the plot radius
 
 // ── Spectrum processing (reproduces CDIP's polar plot exactly) ──────────────
@@ -45,8 +42,8 @@ export const INNER_OFFSET = 29 / 175; // radius of f = 0, as a fraction of the p
 // Set EVEN_BAND_HZ = 0 and DIR_BIN_DEG = 1 for raw, full-resolution MEM.
 export const EVEN_BAND_HZ = 0.01;
 export const DIR_BIN_DEG = 5;
-// Colour scale maximum: 'spectrum' = max over the whole spectrum (CDIP: the
-// same scale for every range button), 'visible' = max within the shown range.
+// Colour scale maximum: 'spectrum' = max over the whole spectrum (as on CDIP's
+// plot), 'visible' = max within the 8–33 s range shown.
 export const SCALE_MAX = 'spectrum';
 // Colours: 10 discrete bands with round edges (see src/colormap.js). The scale
 // maximum above sets the band width: the smallest round step with 10 bands

@@ -1,5 +1,5 @@
 import {
-  STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
+  STATIONS, DEFAULT_STATION, RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
   EVEN_BAND_HZ, DIR_BIN_DEG, DEFAULT_GAP, GAP_WARN_FRACTION,
 } from './config.js';
 import { loadStation } from './dataSource.js';
@@ -17,7 +17,6 @@ const store = {
 const params = new URLSearchParams(location.search);
 const state = {
   station: pick(params.get('station') || store.get('station'), STATIONS.map((s) => s.id), DEFAULT_STATION),
-  range: pick(params.get('range') || store.get('range'), Object.keys(RANGES), DEFAULT_RANGE),
   rec: null,
   field: null,
   loadSeq: 0,
@@ -30,20 +29,6 @@ for (const s of STATIONS) select.add(new Option(`${s.name} (${s.id.replace(/p\d+
 select.value = state.station;
 select.addEventListener('change', () => { state.station = select.value; store.set('station', state.station); load(); });
 
-const rangesEl = $('ranges');
-for (const [key, r] of Object.entries(RANGES)) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.setAttribute('role', 'radio');
-  b.dataset.range = key;
-  b.textContent = r.label;
-  b.addEventListener('click', () => { state.range = key; store.set('range', key); syncRangeButtons(); draw(); });
-  rangesEl.append(b);
-}
-function syncRangeButtons() {
-  for (const b of rangesEl.children) b.setAttribute('aria-checked', String(b.dataset.range === state.range));
-}
-syncRangeButtons();
 
 $('refresh').addEventListener('click', () => load());
 for (const [r, g, b] of LEVEL_COLORS) {
@@ -137,12 +122,11 @@ function draw() {
   const r = state.rec;
   const meta = STATIONS.find((s) => s.id === state.station);
   const gap = meta && 'gap' in meta ? meta.gap : DEFAULT_GAP;
-  const range = RANGES[state.range];
-  const { step, fLo, fHi } = renderPolar(canvas, { field: state.field, range, dp: r?.dp, gap });
+  const { step, fLo, fHi } = renderPolar(canvas, { field: state.field, range: RANGE, dp: r?.dp, gap });
   const hidden = gapEnergyFraction(state.field, gap, fLo, fHi);
   const note = $('gap-note');
   note.hidden = !(hidden > GAP_WARN_FRACTION);
-  if (gap) note.textContent = `${Math.round(hidden * 100)}% of the energy in this range comes from ${gap[0]}–${gap[1]}°, which isn't drawn.`;
+  if (gap) note.textContent = `${Math.round(hidden * 100)}% of the ${RANGE.minPeriod}–${RANGE.maxPeriod} s energy comes from ${gap[0]}–${gap[1]}°, which isn't drawn.`;
   // key labels: the lower edge of each band, as on CDIP's keys
   $('key-labels').replaceChildren(...(r && step ? LEVEL_COLORS.map((_, i) => {
     const el = document.createElement('span');
