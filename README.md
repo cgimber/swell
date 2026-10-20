@@ -8,14 +8,19 @@ HTML/CSS/ES modules, no runtime dependencies.
 - Angle is the direction waves come **from** (north up, labels every 30°).
   As on CDIP's map inset, the plot is a navy sector that leaves out the
   land-side wedge from 0° to 135°. The period labels sit in that gap, outside
-  the plot. If more than 5 % of the energy comes from inside the wedge, a note
-  says so.
+  the plot. Major axes run every 45° (N, 315°, W, 225°, S), with fainter minor
+  axes every 15°. If more than 5 % of the energy comes from inside the wedge, a
+  note says so.
 - Radius is period: long periods sit near the centre, short periods at the rim.
   The layout matches CDIP's: radius is linear in frequency, and periods longer
   than 33 s are left blank, giving an empty centre.
-- Colour is energy density S(f, θ) in m²/Hz/deg, using CDIP's colour ramp.
-  The scale runs to the maximum of the whole spectrum, as on CDIP's plot, so it
-  stays the same when you switch ranges.
+- Colour is energy density S(f, θ) in m²/Hz/deg, drawn in 10 discrete bands
+  using the colours of CDIP's map keys. The bands have round edges (e.g. 0,
+  0.04, … 0.36) chosen so they cover the maximum of the whole spectrum. That
+  maximum is the same as on CDIP's plot, so the key doesn't change when you
+  switch ranges. The lowest band is the navy background.
+- Type is [Inter](https://rsms.me/inter/), loaded from Google Fonts, with
+  tabular figures for numbers.
 - Toggles, as on CDIP: **High freq** (1–33 s, rim at 0.74 Hz),
   **Normal** (3–33 s) and **Swell only** (8–33 s, rim at 0.12 Hz).
 - The header shows station, sample time (local and UTC), the data's age,
@@ -65,20 +70,15 @@ in `cdipSpectrum()` (`src/mem.js`):
    a1/b1/a2/b2 are energy-weighted. This merges the narrow 0.005 Hz swell bands
    in pairs, which is the main reason CDIP's peaks are lower than raw MEM.
 2. Run MEM on a 1° grid, then average into 5° direction bins.
-3. Scale colours to the maximum of the whole spectrum.
-4. Map a value v (as a fraction of that maximum) to position
-   0.09 + 0.91·v on the colour ramp. Values below 2.2 % are drawn in the
-   background fill, the ramp's first colour. Weak
-   energy therefore still shows as dark blue and the peak stands out.
-5. Interpolate bilinearly between band centres and 5° bins for every pixel.
+3. Interpolate bilinearly between band centres and 5° bins for every pixel.
+4. Scale colours to the maximum of the whole spectrum. CDIP's polar plot uses
+   a continuous ramp. This page uses CDIP's discrete map-key style instead, with
+   10 bands of round width covering that maximum.
 
 Steps 1 and 2 match CDIP's published matrices cell for cell. I checked 27
 records, Datawell Mk3 (64 bands) and DWR4 (100 bands), and the tests pin two of
-them. The colour-bar maximum equals CDIP's printed label on all 26 plots
-checked. CDIP doesn't document the colour mapping in step 4, so I fitted it
-against 52 CDIP plot images (26 stations, Swell and Normal ranges). It agrees on
-99.7 % of pixels about whether a pixel is coloured, and within one colour step
-where both are. I measured the plot geometry from the ring positions on CDIP's
+them. The maximum in step 4 equals CDIP's printed colour-bar label on all 26
+plots checked. I measured the plot geometry from the ring positions on CDIP's
 images: radius = R·(0.166 + 0.834·f/f_max).
 
 **Direction convention.** I checked this against real records: `atan2(b1, a1)`
@@ -165,9 +165,9 @@ Loma South. All of them were verified against their THREDDS realtime files.
   set its own `gap`, or `gap: null` for a full circle. `GAP_WARN_FRACTION`
   sets when the hidden-energy note appears.
 - `SCALE_MAX`: `'spectrum'` (CDIP) or `'visible'` (rescale to the shown range).
-- `COLOR_FLOOR`, `TRANSPARENT_BELOW` and `STALE_AFTER_HOURS`.
+- `STALE_AFTER_HOURS`.
 
-Colours live in `src/colormap.js`.
+The band colours and round-step rule live in `src/colormap.js`.
 
 ## A note on MEM
 

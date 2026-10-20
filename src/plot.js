@@ -1,9 +1,9 @@
 // Canvas polar plot of S(f,θ). North up, angle = direction waves come FROM,
 // radius increases with frequency (long periods near the centre).
-import { buildLut, rampPosition, FILL_RGB } from './colormap.js';
+import { LEVEL_COLORS, FILL_RGB, levelStep, levelIndex } from './colormap.js';
 import { INNER_OFFSET, SCALE_MAX } from './config.js';
 
-const LUT = buildLut();
+const FONT = 'Inter, system-ui, sans-serif';
 
 /**
  * Turn the MEM output into a dense field ready for sampling: skipped bands
@@ -94,7 +94,7 @@ function cssVar(el, name, fallback) {
 }
 
 /**
- * Draw the plot. Returns { vmax } for the colour bar.
+ * Draw the plot. Returns { vmax, step } for the colour key.
  * opts: { field, range, dp, gap } — gap: [fromDeg, toDeg] wedge to leave out, or null
  */
 export function renderPolar(canvas, { field, range, dp, gap = null }) {
@@ -145,6 +145,7 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
 
   // field
   const vmax = field ? visibleMax(field, fLo, SCALE_MAX === 'visible' ? fHi : Infinity) : 0;
+  const step = levelStep(vmax);
   if (field && vmax > 0) {
     const img = ctx.createImageData(size, size);
     const px = img.data;
@@ -156,11 +157,11 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
         if (r > R || r < r0) continue;
         const dir = (Math.atan2(dx, -dy) * 180) / Math.PI; // clockwise from north
         if (inGap(dir, gap)) continue;
-        const t = rampPosition(sampleField(field, rToF(r), dir) / vmax);
-        if (!(t >= 0)) continue;
-        const li = Math.round(t * 255) * 3;
+        const level = levelIndex(sampleField(field, rToF(r), dir), step);
+        if (level === 0) continue; // lowest band = background fill
+        const [cr, cg, cb] = LEVEL_COLORS[level];
         const o = (y * size + x) * 4;
-        px[o] = LUT[li]; px[o + 1] = LUT[li + 1]; px[o + 2] = LUT[li + 2]; px[o + 3] = 255;
+        px[o] = cr; px[o + 1] = cg; px[o + 2] = cb; px[o + 3] = 255;
       }
     }
     const off = makeCanvas(size);
@@ -172,25 +173,30 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     ctx.restore();
   }
 
-  // grid: dotted period rings and spokes, light so they read on the navy fill
-  ctx.lineWidth = dpr;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-  ctx.setLineDash([dpr, 3 * dpr]);
-  const rings = range.rings.filter((p) => 1 / p > fLo && 1 / p < fHi);
-  for (const p of rings) { arcPath(fToR(1 / p)); ctx.stroke(); }
-  for (let a = 0; a < 360; a += 30) {
-    if (inGap(a, gap) && a !== g0) continue;
-    const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
+  // grid: dotted rings; major axes every 45° (N, 315, W, 225, S) and fainter
+  // minor axes every 15°, light so they read on the navy fill
+  const spoke = (deg) => {
+    const t = (deg * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.beginPath();
     ctx.moveTo(cx + r0 * s, cy + r0 * c);
     ctx.lineTo(cx + R * s, cy + R * c);
     ctx.stroke();
-  }
+  };
+  const onEdge = (deg) => gap && (deg % 360 === g0 % 360 || deg % 360 === g1 % 360);
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([dpr, 3 * dpr]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  for (let a = 0; a < 360; a += 15) if (a % 45 && !inGap(a, gap) && !onEdge(a)) spoke(a);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  for (let a = 0; a < 360; a += 45) if (!inGap(a, gap) && !onEdge(a)) spoke(a);
+  const rings = range.rings.filter((p) => 1 / p > fLo && 1 / p < fHi);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  for (const p of rings) { arcPath(fToR(1 / p)); ctx.stroke(); }
   ctx.setLineDash([]);
 
   // period labels outside the plot, along the clockwise edge of the gap
   ctx.fillStyle = fg;
-  ctx.font = `${Math.round(font * 0.85)}px system-ui, sans-serif`;
+  ctx.font = `500 ${Math.round(font * 0.85)}px ${FONT}`;
   ctx.textBaseline = 'middle';
   if (gap) {
     const t = (g1 * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
@@ -205,25 +211,17 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     const t = (135 * Math.PI) / 180;
     for (const p of rings) {
       const r = fToR(1 / p);
-      haloText(ctx, `${p}s`, cx + r * Math.sin(t), cy - r * Math.cos(t), bg);
+      haloText(ctx, `${p} s`, cx + r * Math.sin(t), cy - r * Math.cos(t), bg);
     }
   }
 
-  // period range in the empty centre, as on CDIP's plot
-  ctx.textAlign = 'center';
-  if (r0 > font * 2.2) {
-    ctx.fillStyle = fg;
-    ctx.font = `${Math.round(font * 0.8)}px system-ui, sans-serif`;
-    ctx.fillText('Period range', cx, cy - font * 0.55);
-    ctx.font = `600 ${Math.round(font * 0.95)}px system-ui, sans-serif`;
-    ctx.fillText(`${range.minPeriod}–${range.maxPeriod} s`, cx, cy + font * 0.6);
-  }
-
-  // compass labels every 30° (all the way round, including the gap)
+  // compass labels every 30° around the plotted sector (none inside the gap)
   ctx.fillStyle = fg;
-  ctx.font = `${font}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.font = `500 ${font}px ${FONT}`;
   const names = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
   for (let a = 0; a < 360; a += 30) {
+    if (inGap(a, gap) && !onEdge(a)) continue;
     const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.fillText(names[a] ?? `${a}°`, cx + (R + margin * 0.5) * s, cy + (R + margin * 0.5) * c);
   }
@@ -239,7 +237,7 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     ctx.lineTo(cx + base * s + w * c, cy + base * c - w * s);
     ctx.closePath(); ctx.fill();
   }
-  return { vmax, fLo, fHi };
+  return { vmax, step, fLo, fHi };
 }
 
 function haloText(ctx, text, x, y, halo) {

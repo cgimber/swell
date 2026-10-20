@@ -38,13 +38,24 @@ test('range limits and radius match CDIP geometry', async () => {
   }
 });
 
-test('colour mapping follows CDIP: floor offset and transparency cutoff', async () => {
-  const { rampPosition } = await import('../src/colormap.js');
-  const { COLOR_FLOOR, TRANSPARENT_BELOW } = await import('../src/config.js');
-  assert.ok(Number.isNaN(rampPosition(TRANSPARENT_BELOW / 2)));
-  assert.ok(Math.abs(rampPosition(0.5) - (COLOR_FLOOR + (1 - COLOR_FLOOR) * 0.5)) < 1e-12);
-  assert.equal(rampPosition(1), 1);
-  assert.ok(rampPosition(TRANSPARENT_BELOW) > 0.09 && rampPosition(TRANSPARENT_BELOW) < 0.12, 'weak energy starts dark blue');
+test('discrete colour levels use round band edges covering the maximum', async () => {
+  const { levelStep, levelIndex, formatEdge, LEVEL_COLORS } = await import('../src/colormap.js');
+  assert.equal(LEVEL_COLORS.length, 10);
+  assert.ok(Math.abs(levelStep(0.384) - 0.04) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.103) - 0.012) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.5) - 0.05) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.036) - 0.004) < 1e-12);
+  for (const vmax of [0.034, 0.07, 0.212, 0.417, 1.3, 9.9]) {
+    const step = levelStep(vmax);
+    assert.ok(step * 10 >= vmax - 1e-12 && step * 10 < vmax * 2, `${vmax} → ${step}`);
+    assert.equal(levelIndex(vmax, step), Math.min(9, Math.floor(vmax / step + 1e-9)));
+  }
+  assert.equal(levelIndex(0.039, 0.04), 0);
+  assert.equal(levelIndex(0.04, 0.04), 1);
+  assert.equal(levelIndex(5, 0.04), 9, 'clamped to the top band');
+  assert.equal(levelIndex(NaN, 0.04), 0);
+  assert.equal(formatEdge(3 * 0.04), '0.12');
+  assert.equal(formatEdge(0), '0');
 });
 
 test('inGap handles the omitted wedge, including wrap-around', async () => {

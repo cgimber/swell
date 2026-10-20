@@ -48,10 +48,7 @@ export const DIR_BIN_DEG = 5;
 // Colour scale maximum: 'spectrum' = max over the whole spectrum (CDIP: the
 // same scale for every range button), 'visible' = max within the shown range.
 export const SCALE_MAX = 'spectrum';
-// Colour mapping, fitted to CDIP's plots (52 images, 26 stations; 99.7 % pixel agreement):
-// a value v (as a fraction of the scale maximum) is drawn with the colour at
-// COLOR_FLOOR + (1 − COLOR_FLOOR)·v along the ramp, so weak energy still shows
-// as dark blue; values below TRANSPARENT_BELOW are not drawn.
-export const COLOR_FLOOR = 0.09;
-export const TRANSPARENT_BELOW = 0.022;
+// Colours: 10 discrete bands with round edges (see src/colormap.js). The scale
+// maximum above sets the band width: the smallest round step with 10 bands
+// covering it.
 export const STALE_AFTER_HOURS = 2;
