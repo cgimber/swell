@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepareField, sampleField, visibleMax, rangeLimits } from '../src/plot.js';
-import { RANGES } from '../src/config.js';
+import { RANGE } from '../src/config.js';
 
 const row = (v) => Float64Array.from({ length: 180 }, () => v);
 const dirs = Array.from({ length: 180 }, (_, i) => i * 2);
@@ -26,11 +26,14 @@ test('visibleMax only looks at the visible frequency range', () => {
 
 test('range limits and radius match CDIP geometry', async () => {
   const { radialScale } = await import('../src/plot.js');
-  // Ring radii measured on CDIP's 350 px plots (centre 175, rim 175 px)
-  const cases = [['swell', [[22, 84], [16, 105], [12, 130], [10, 150]]], ['normal', [[20, 51], [12, 66], [8, 84], [6, 103], [4, 139]]],
-    ['high', [[20, 39], [12, 46], [8, 54], [6, 62], [4, 78], [2, 127]]]];
-  for (const [key, rings] of cases) {
-    const { fLo, fHi } = rangeLimits(RANGES[key]);
+  // Ring radii measured on CDIP's 350 px plots (centre 175, rim 175 px).
+  // Normal / High freq geometry kept as checks of the same radius formula.
+  const cases = [[RANGE, [[22, 84], [16, 105], [12, 130], [10, 150]]],
+    [{ maxPeriod: 33, maxFreq: 1 / 3 }, [[20, 51], [12, 66], [8, 84], [6, 103], [4, 139]]],
+    [{ maxPeriod: 33, maxFreq: 0.74 }, [[20, 39], [12, 46], [8, 54], [6, 62], [4, 78], [2, 127]]]];
+  for (const [range, rings] of cases) {
+    const key = range.maxFreq;
+    const { fLo, fHi } = rangeLimits(range);
     assert.ok(Math.abs(fLo - 1 / 33) < 1e-12);
     const m = radialScale(fHi, 175);
     for (const [T, r] of rings) assert.ok(Math.abs(m.fToR(1 / T) - r) < 2.5, `${key} ${T}s: ${m.fToR(1 / T).toFixed(1)} vs ${r}`);
@@ -38,11 +41,47 @@ test('range limits and radius match CDIP geometry', async () => {
   }
 });
 
-test('colour mapping follows CDIP: floor offset and transparency cutoff', async () => {
-  const { rampPosition } = await import('../src/colormap.js');
-  const { COLOR_FLOOR, TRANSPARENT_BELOW } = await import('../src/config.js');
-  assert.ok(Number.isNaN(rampPosition(TRANSPARENT_BELOW / 2)));
-  assert.ok(Math.abs(rampPosition(0.5) - (COLOR_FLOOR + (1 - COLOR_FLOOR) * 0.5)) < 1e-12);
-  assert.equal(rampPosition(1), 1);
-  assert.ok(rampPosition(TRANSPARENT_BELOW) > 0.09 && rampPosition(TRANSPARENT_BELOW) < 0.12, 'weak energy starts dark blue');
+test('discrete colour levels use round band edges covering the maximum', async () => {
+  const { levelStep, levelIndex, formatEdge, LEVEL_COLORS } = await import('../src/colormap.js');
+  assert.equal(LEVEL_COLORS.length, 10);
+  assert.ok(Math.abs(levelStep(0.384) - 0.04) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.103) - 0.012) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.5) - 0.05) < 1e-12);
+  assert.ok(Math.abs(levelStep(0.036) - 0.004) < 1e-12);
+  for (const vmax of [0.034, 0.07, 0.212, 0.417, 1.3, 9.9]) {
+    const step = levelStep(vmax);
+    assert.ok(step * 10 >= vmax - 1e-12 && step * 10 < vmax * 2, `${vmax} → ${step}`);
+    assert.equal(levelIndex(vmax, step), Math.min(9, Math.floor(vmax / step + 1e-9)));
+  }
+  assert.equal(levelIndex(0.039, 0.04), 0);
+  assert.equal(levelIndex(0.04, 0.04), 1);
+  assert.equal(levelIndex(5, 0.04), 9, 'clamped to the top band');
+  assert.equal(levelIndex(NaN, 0.04), 0);
+  assert.equal(formatEdge(3 * 0.04), '0.12');
+  assert.equal(formatEdge(0), '0');
+});
+
+test('inGap handles the omitted wedge, including wrap-around', async () => {
+  const { inGap } = await import('../src/plot.js');
+  const gap = [0, 135];
+  assert.ok(inGap(0, gap) && inGap(90, gap) && inGap(134.9, gap) && inGap(360, gap));
+  assert.ok(!inGap(135, gap) && !inGap(200, gap) && !inGap(359.9, gap) && !inGap(-1, gap));
+  assert.ok(inGap(350, [330, 30]) && inGap(10, [330, 30]) && !inGap(40, [330, 30]));
+  assert.ok(!inGap(90, null));
+});
+
+test('gapEnergyFraction measures how much visible energy the gap hides', async () => {
+  const { gapEnergyFraction } = await import('../src/plot.js');
+  const r = Float64Array.from({ length: 72 }, (_, k) => (k * 5 < 135 ? 1 : 0) + (k * 5 >= 180 && k * 5 < 360 ? 3 : 0));
+  const field = prepareField({ dirs: Array.from({ length: 72 }, (_, k) => k * 5), step: 5, S: [r, r] }, [0.05, 0.06]);
+  const inGapSum = 27, outSum = 36 * 3;
+  assert.ok(Math.abs(gapEnergyFraction(field, [0, 135], 0.04, 0.07) - inGapSum / (inGapSum + outSum)) < 1e-12);
+  assert.equal(gapEnergyFraction(field, null, 0.04, 0.07), 0);
+});
+
+test('palette is Turbo sampled at 10 points (exact matplotlib values)', async () => {
+  const { LEVEL_COLORS, FILL_RGB } = await import('../src/colormap.js');
+  assert.deepEqual(LEVEL_COLORS[0], [0x30, 0x12, 0x3b]); // turbo(0)
+  assert.deepEqual(LEVEL_COLORS[9], [0x7a, 0x04, 0x03]); // turbo(1)
+  assert.deepEqual(FILL_RGB, LEVEL_COLORS[0]);
 });

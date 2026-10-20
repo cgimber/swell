@@ -1,45 +1,39 @@
-// Jet-like ramp matching CDIP's polar-plot colour bar (sampled from their
-// image): dark blue → blue → cyan → green → yellow → red → near-black,
-// piecewise linear in RGB. Positions are along the ramp (0–1).
-import { TRANSPARENT_BELOW, COLOR_FLOOR } from './config.js';
+// Discrete colour levels using Google's Turbo colormap (exact values from
+// matplotlib's 256-entry table, sampled at 10 evenly spaced points). Turbo
+// steps more evenly than CDIP's jet-style key while keeping a blue → red read.
+// The value range 0…top is cut into LEVEL_COLORS.length equal bands with round
+// edges; band 0 is also the plot's background fill, so anything below the
+// first edge blends into it.
+export const LEVEL_COLORS = [
+  '#30123b', '#4661d6', '#37a8fa', '#1ae4b6', '#71fe5f',
+  '#c8ef34', '#faba39', '#f56918', '#ca2a04', '#7a0403',
+].map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
 
-export const STOPS = [
-  [21 / 310, [0, 0, 107]],
-  [0.165, [0, 0, 255]],
-  [0.33, [0, 250, 255]],
-  [0.5, [0, 127, 0]],
-  [0.665, [255, 250, 0]],
-  [0.83, [255, 0, 0]],
-  [1.0, [10, 0, 0]],
-];
+/** Background fill = colour of the lowest band. */
+export const FILL_RGB = LEVEL_COLORS[0];
 
-/** Lookup table of 256 RGB triplets over 0..1 (values below the first stop take its colour). */
-export function buildLut(stops = STOPS) {
-  const lut = new Uint8ClampedArray(256 * 3);
-  for (let i = 0; i < 256; i++) {
-    const t = i / 255;
-    let j = 1;
-    while (j < stops.length - 1 && stops[j][0] < t) j++;
-    const [t0, c0] = stops[j - 1], [t1, c1] = stops[j];
-    const u = Math.min(1, Math.max(0, (t - t0) / (t1 - t0)));
-    for (let k = 0; k < 3; k++) lut[i * 3 + k] = c0[k] + (c1[k] - c0[k]) * u;
-  }
-  return lut;
+const NICE = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+/**
+ * Round band width so that `levels` bands cover 0…vmax:
+ * the smallest step from 1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8 × 10^k with step·levels ≥ vmax.
+ */
+export function levelStep(vmax, levels = LEVEL_COLORS.length) {
+  if (!(vmax > 0)) return 0;
+  const raw = vmax / levels;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const m = NICE.find((n) => n * p >= raw * (1 - 1e-9));
+  return m * p;
 }
 
-/** Ramp position for a value given as a fraction of the scale max; NaN = not drawn. */
-export function rampPosition(v) {
-  return v >= TRANSPARENT_BELOW ? Math.min(1, COLOR_FLOOR + (1 - COLOR_FLOOR) * v) : NaN;
+/** Band index for value v given the band width (clamped to the top band). */
+export function levelIndex(v, step, levels = LEVEL_COLORS.length) {
+  if (!(v >= 0) || !(step > 0)) return 0;
+  return Math.min(levels - 1, Math.floor(v / step + 1e-9));
 }
 
-/** CSS gradient for the colour bar, drawn with the same mapping as the plot. */
-export function cssGradient(stops = STOPS) {
-  const lut = buildLut(stops);
-  const parts = [`transparent ${(TRANSPARENT_BELOW * 100).toFixed(1)}%`];
-  for (let i = 0; i <= 40; i++) {
-    const v = TRANSPARENT_BELOW + ((1 - TRANSPARENT_BELOW) * i) / 40;
-    const li = Math.round(rampPosition(v) * 255) * 3;
-    parts.push(`rgb(${lut[li]},${lut[li + 1]},${lut[li + 2]}) ${(v * 100).toFixed(1)}%`);
-  }
-  return `linear-gradient(to right, ${parts.join(', ')})`;
+/** Format a band edge compactly: 0, 0.04, 0.012, 1.5 … */
+export function formatEdge(v) {
+  if (v === 0) return '0';
+  return String(+v.toPrecision(3));
 }

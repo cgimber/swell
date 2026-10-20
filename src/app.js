@@ -1,11 +1,11 @@
 import {
-  STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
-  EVEN_BAND_HZ, DIR_BIN_DEG,
+  STATIONS, DEFAULT_STATION, RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
+  EVEN_BAND_HZ, DIR_BIN_DEG, DEFAULT_GAP, GAP_WARN_FRACTION,
 } from './config.js';
 import { loadStation } from './dataSource.js';
 import { cdipSpectrum } from './mem.js';
-import { prepareField, renderPolar } from './plot.js';
-import { cssGradient } from './colormap.js';
+import { prepareField, renderPolar, gapEnergyFraction } from './plot.js';
+import { LEVEL_COLORS, formatEdge } from './colormap.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('plot');
@@ -17,7 +17,6 @@ const store = {
 const params = new URLSearchParams(location.search);
 const state = {
   station: pick(params.get('station') || store.get('station'), STATIONS.map((s) => s.id), DEFAULT_STATION),
-  range: pick(params.get('range') || store.get('range'), Object.keys(RANGES), DEFAULT_RANGE),
   rec: null,
   field: null,
   loadSeq: 0,
@@ -30,23 +29,13 @@ for (const s of STATIONS) select.add(new Option(`${s.name} (${s.id.replace(/p\d+
 select.value = state.station;
 select.addEventListener('change', () => { state.station = select.value; store.set('station', state.station); load(); });
 
-const rangesEl = $('ranges');
-for (const [key, r] of Object.entries(RANGES)) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.setAttribute('role', 'radio');
-  b.dataset.range = key;
-  b.textContent = r.label;
-  b.addEventListener('click', () => { state.range = key; store.set('range', key); syncRangeButtons(); draw(); });
-  rangesEl.append(b);
-}
-function syncRangeButtons() {
-  for (const b of rangesEl.children) b.setAttribute('aria-checked', String(b.dataset.range === state.range));
-}
-syncRangeButtons();
 
 $('refresh').addEventListener('click', () => load());
-$('cbar').style.backgroundImage = cssGradient();
+for (const [r, g, b] of LEVEL_COLORS) {
+  const cell = document.createElement('span');
+  cell.style.background = `rgb(${r},${g},${b})`;
+  $('key').append(cell);
+}
 $('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
 
 // ── loading ────────────────────────────────────────────────────────────────
@@ -131,18 +120,20 @@ function compass(deg) {
 // ── drawing ────────────────────────────────────────────────────────────────
 function draw() {
   const r = state.rec;
-  const { vmax } = renderPolar(canvas, {
-    field: state.field,
-    range: RANGES[state.range],
-    dp: r?.dp,
-  });
-  $('cmin').textContent = r ? '0' : '';
-  $('cmid').textContent = r ? fmtVal(vmax / 2) : '';
-  $('cmax').textContent = r ? fmtVal(vmax) : '';
-}
-function fmtVal(v) {
-  if (!(v > 0)) return '0';
-  return v >= 0.01 ? String(+v.toPrecision(3)) : v.toExponential(1);
+  const meta = STATIONS.find((s) => s.id === state.station);
+  const gap = meta && 'gap' in meta ? meta.gap : DEFAULT_GAP;
+  const { step, fLo, fHi } = renderPolar(canvas, { field: state.field, range: RANGE, dp: r?.dp, gap });
+  const hidden = gapEnergyFraction(state.field, gap, fLo, fHi);
+  const note = $('gap-note');
+  note.hidden = !(hidden > GAP_WARN_FRACTION);
+  if (gap) note.textContent = `${Math.round(hidden * 100)}% of the ${RANGE.minPeriod}–${RANGE.maxPeriod} s energy comes from ${gap[0]}–${gap[1]}°, which isn't drawn.`;
+  // key labels: the lower edge of each band, as on CDIP's keys
+  $('key-labels').replaceChildren(...(r && step ? LEVEL_COLORS.map((_, i) => {
+    const el = document.createElement('span');
+    el.textContent = formatEdge(i * step);
+    el.style.left = `${i * 10}%`;
+    return el;
+  }) : []));
 }
 
 let resizeRaf = 0;
@@ -151,6 +142,8 @@ new ResizeObserver(() => {
   resizeRaf = requestAnimationFrame(draw);
 }).observe(canvas);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+// the canvas only picks up Inter once it has loaded
+document.fonts?.load('500 12px Inter').then(draw, () => {});
 
 // keep the age fresh; reload when the tab returns or every 10 minutes
 setInterval(() => { if (state.rec) updateSummary(); }, 60_000);

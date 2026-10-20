@@ -8,6 +8,9 @@
   <meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
   <title>Swell Spectrum</title>
   <meta name="description" content="Latest CDIP buoy directional wave spectrum as a polar plot.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -31,17 +34,18 @@
       </dl>
     </section>
 
-    <div class="range-toggle" role="radiogroup" aria-label="Period range" id="ranges"></div>
 
     <section class="plot-wrap">
       <canvas id="plot" role="img" aria-label="Polar directional wave spectrum"></canvas>
       <div id="status" class="status" role="status"></div>
     </section>
 
-    <section class="colorbar" aria-label="Colour scale">
-      <div id="cbar" class="cbar"></div>
-      <div class="cbar-labels"><span id="cmin">0</span><span id="cmid"></span><span id="cmax"></span></div>
-      <p class="units">Energy density, m²/Hz/deg · angle = direction waves come <em>from</em> · radius = period</p>
+    <section class="colorbar" aria-label="Colour key">
+      <h2 class="key-title">Energy density <span>(m²/Hz/deg)</span></h2>
+      <div id="key" class="key" aria-hidden="true"></div>
+      <div id="key-labels" class="key-labels"></div>
+      <p id="gap-note" class="gap-note" hidden></p>
+      <p class="units">Angle = direction waves come <em>from</em> · radius = period</p>
     </section>
 
     <footer>
