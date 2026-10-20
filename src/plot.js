@@ -1,6 +1,6 @@
 // Canvas polar plot of S(f,θ). North up, angle = direction waves come FROM,
 // radius increases with frequency (long periods near the centre).
-import { buildLut, rampPosition } from './colormap.js';
+import { buildLut, rampPosition, FILL_RGB } from './colormap.js';
 import { INNER_OFFSET, SCALE_MAX } from './config.js';
 
 const LUT = buildLut();
@@ -71,15 +71,33 @@ export function rangeLimits(range) {
   return { fLo: 1 / range.maxPeriod, fHi: range.maxFreq };
 }
 
+/** True if bearing `dir` lies inside the omitted wedge `gap` = [from, to] (clockwise from N). */
+export function inGap(dir, gap) {
+  if (!gap) return false;
+  const width = (((gap[1] - gap[0]) % 360) + 360) % 360;
+  return ((((dir - gap[0]) % 360) + 360) % 360) < width;
+}
+
+/** Fraction of the energy between fLo and fHi that comes from inside the gap. */
+export function gapEnergyFraction(field, gap, fLo, fHi) {
+  if (!field || !gap) return 0;
+  let inside = 0, total = 0;
+  field.freqs.forEach((f, i) => {
+    if (f < fLo || f > fHi) return;
+    field.data[i].forEach((v, k) => { total += v; if (inGap(k * field.step, gap)) inside += v; });
+  });
+  return total > 0 ? inside / total : 0;
+}
+
 function cssVar(el, name, fallback) {
   return getComputedStyle(el).getPropertyValue(name).trim() || fallback;
 }
 
 /**
  * Draw the plot. Returns { vmax } for the colour bar.
- * opts: { field, range, dp }
+ * opts: { field, range, dp, gap } — gap: [fromDeg, toDeg] wedge to leave out, or null
  */
-export function renderPolar(canvas, { field, range, dp }) {
+export function renderPolar(canvas, { field, range, dp, gap = null }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const cssSize = canvas.clientWidth;
   const size = Math.round(cssSize * dpr);
@@ -89,7 +107,6 @@ export function renderPolar(canvas, { field, range, dp }) {
   ctx.clearRect(0, 0, size, size);
 
   const fg = cssVar(canvas, '--plot-fg', '#222');
-  const grid = cssVar(canvas, '--plot-grid', 'rgba(0,0,0,.25)');
   const bg = cssVar(canvas, '--plot-bg', '#fff');
   const accent = cssVar(canvas, '--accent', '#e0115f');
 
@@ -100,9 +117,31 @@ export function renderPolar(canvas, { field, range, dp }) {
   const { fToR, rToF } = radialScale(fHi, R);
   const r0 = fToR(fLo); // empty centre: periods > maxPeriod
 
-  // background disc
-  ctx.fillStyle = bg;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  // Sector covered by the plot: everything except the `gap` wedge, as on
+  // CDIP's map inset. Canvas angles: bearing b → (b − 90)°.
+  const ang = (b) => ((b - 90) * Math.PI) / 180;
+  const [g0, g1] = gap ?? [0, 0];
+  const sectorPath = (outer, inner) => {
+    ctx.beginPath();
+    if (gap) {
+      ctx.arc(cx, cy, outer, ang(g1), ang(g0 + 360), false);
+      ctx.arc(cx, cy, inner, ang(g0 + 360), ang(g1), true);
+      ctx.closePath();
+    } else {
+      ctx.arc(cx, cy, outer, 0, Math.PI * 2);
+      ctx.arc(cx, cy, inner, Math.PI * 2, 0, true);
+    }
+  };
+  const arcPath = (r) => {
+    ctx.beginPath();
+    if (gap) ctx.arc(cx, cy, r, ang(g1), ang(g0 + 360), false);
+    else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  };
+
+  // background fill: the colour of zero energy
+  ctx.fillStyle = `rgb(${FILL_RGB.join(',')})`;
+  sectorPath(R, r0);
+  ctx.fill();
 
   // field
   const vmax = field ? visibleMax(field, fLo, SCALE_MAX === 'visible' ? fHi : Infinity) : 0;
@@ -116,6 +155,7 @@ export function renderPolar(canvas, { field, range, dp }) {
         const r = Math.hypot(dx, dy);
         if (r > R || r < r0) continue;
         const dir = (Math.atan2(dx, -dy) * 180) / Math.PI; // clockwise from north
+        if (inGap(dir, gap)) continue;
         const t = rampPosition(sampleField(field, rToF(r), dir) / vmax);
         if (!(t >= 0)) continue;
         const li = Math.round(t * 255) * 3;
@@ -125,51 +165,66 @@ export function renderPolar(canvas, { field, range, dp }) {
     }
     const off = makeCanvas(size);
     off.getContext('2d').putImageData(img, 0, 0);
+    ctx.save();
+    sectorPath(R, r0);
+    ctx.clip(); // keep anti-aliased sector edges clean
     ctx.drawImage(off, 0, 0);
+    ctx.restore();
   }
 
-  // grid: period rings
+  // grid: dotted period rings and spokes, light so they read on the navy fill
   ctx.lineWidth = dpr;
-  ctx.strokeStyle = grid;
-  ctx.fillStyle = fg;
-  ctx.font = `${Math.round(font * 0.85)}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const labelBearing = (135 * Math.PI) / 180; // SE: land side for San Diego buoys
-  for (const p of range.rings) {
-    const f = 1 / p;
-    if (f <= fLo || f >= fHi) continue;
-    const r = fToR(f);
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    const lx = cx + r * Math.sin(labelBearing), ly = cy - r * Math.cos(labelBearing);
-    haloText(ctx, `${p}s`, lx, ly, bg);
-  }
-  // inner (33 s) and outer boundary
-  ctx.beginPath(); ctx.arc(cx, cy, r0, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = fg;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
-
-  // period range in the empty centre, as on CDIP's plot
-  if (r0 > font * 2.2) {
-    const loTxt = range.minPeriod;
-    ctx.fillStyle = fg;
-    ctx.font = `${Math.round(font * 0.8)}px system-ui, sans-serif`;
-    ctx.fillText('Period range', cx, cy - font * 0.55);
-    ctx.font = `600 ${Math.round(font * 0.95)}px system-ui, sans-serif`;
-    ctx.fillText(`${loTxt}–${range.maxPeriod} s`, cx, cy + font * 0.6);
-  }
-
-  // spokes + compass labels every 30°
-  ctx.strokeStyle = grid;
-  ctx.font = `${font}px system-ui, sans-serif`;
-  const names = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.setLineDash([dpr, 3 * dpr]);
+  const rings = range.rings.filter((p) => 1 / p > fLo && 1 / p < fHi);
+  for (const p of rings) { arcPath(fToR(1 / p)); ctx.stroke(); }
   for (let a = 0; a < 360; a += 30) {
+    if (inGap(a, gap) && a !== g0) continue;
     const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.beginPath();
     ctx.moveTo(cx + r0 * s, cy + r0 * c);
     ctx.lineTo(cx + R * s, cy + R * c);
     ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // period labels outside the plot, along the clockwise edge of the gap
+  ctx.fillStyle = fg;
+  ctx.font = `${Math.round(font * 0.85)}px system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  if (gap) {
+    const t = (g1 * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
+    const ox = -Math.cos(t), oy = -Math.sin(t); // perpendicular, pointing into the gap
+    ctx.textAlign = ox >= 0 ? 'left' : 'right';
+    for (const p of rings) {
+      const r = fToR(1 / p);
+      ctx.fillText(`${p} s`, cx + r * s + ox * font * 0.5, cy + r * c + oy * font * 0.5);
+    }
+  } else {
+    ctx.textAlign = 'center';
+    const t = (135 * Math.PI) / 180;
+    for (const p of rings) {
+      const r = fToR(1 / p);
+      haloText(ctx, `${p}s`, cx + r * Math.sin(t), cy - r * Math.cos(t), bg);
+    }
+  }
+
+  // period range in the empty centre, as on CDIP's plot
+  ctx.textAlign = 'center';
+  if (r0 > font * 2.2) {
     ctx.fillStyle = fg;
+    ctx.font = `${Math.round(font * 0.8)}px system-ui, sans-serif`;
+    ctx.fillText('Period range', cx, cy - font * 0.55);
+    ctx.font = `600 ${Math.round(font * 0.95)}px system-ui, sans-serif`;
+    ctx.fillText(`${range.minPeriod}–${range.maxPeriod} s`, cx, cy + font * 0.6);
+  }
+
+  // compass labels every 30° (all the way round, including the gap)
+  ctx.fillStyle = fg;
+  ctx.font = `${font}px system-ui, sans-serif`;
+  const names = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
+  for (let a = 0; a < 360; a += 30) {
+    const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.fillText(names[a] ?? `${a}°`, cx + (R + margin * 0.5) * s, cy + (R + margin * 0.5) * c);
   }
 

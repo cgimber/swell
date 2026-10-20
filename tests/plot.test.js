@@ -46,3 +46,21 @@ test('colour mapping follows CDIP: floor offset and transparency cutoff', async 
   assert.equal(rampPosition(1), 1);
   assert.ok(rampPosition(TRANSPARENT_BELOW) > 0.09 && rampPosition(TRANSPARENT_BELOW) < 0.12, 'weak energy starts dark blue');
 });
+
+test('inGap handles the omitted wedge, including wrap-around', async () => {
+  const { inGap } = await import('../src/plot.js');
+  const gap = [0, 135];
+  assert.ok(inGap(0, gap) && inGap(90, gap) && inGap(134.9, gap) && inGap(360, gap));
+  assert.ok(!inGap(135, gap) && !inGap(200, gap) && !inGap(359.9, gap) && !inGap(-1, gap));
+  assert.ok(inGap(350, [330, 30]) && inGap(10, [330, 30]) && !inGap(40, [330, 30]));
+  assert.ok(!inGap(90, null));
+});
+
+test('gapEnergyFraction measures how much visible energy the gap hides', async () => {
+  const { gapEnergyFraction } = await import('../src/plot.js');
+  const r = Float64Array.from({ length: 72 }, (_, k) => (k * 5 < 135 ? 1 : 0) + (k * 5 >= 180 && k * 5 < 360 ? 3 : 0));
+  const field = prepareField({ dirs: Array.from({ length: 72 }, (_, k) => k * 5), step: 5, S: [r, r] }, [0.05, 0.06]);
+  const inGapSum = 27, outSum = 36 * 3;
+  assert.ok(Math.abs(gapEnergyFraction(field, [0, 135], 0.04, 0.07) - inGapSum / (inGapSum + outSum)) < 1e-12);
+  assert.equal(gapEnergyFraction(field, null, 0.04, 0.07), 0);
+});

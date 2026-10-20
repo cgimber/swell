@@ -6,6 +6,10 @@ from a [CDIP](https://cdip.ucsd.edu) buoy as a polar plot, like CDIP's own
 HTML/CSS/ES modules, no runtime dependencies.
 
 - Angle is the direction waves come **from** (north up, labels every 30°).
+  As on CDIP's map inset, the plot is a navy sector that leaves out the
+  land-side wedge from 0° to 135°. The period labels sit in that gap, outside
+  the plot. If more than 5 % of the energy comes from inside the wedge, a note
+  says so.
 - Radius is period: long periods sit near the centre, short periods at the rim.
   The layout matches CDIP's: radius is linear in frequency, and periods longer
   than 33 s are left blank, giving an empty centre.
@@ -63,7 +67,8 @@ in `cdipSpectrum()` (`src/mem.js`):
 2. Run MEM on a 1° grid, then average into 5° direction bins.
 3. Scale colours to the maximum of the whole spectrum.
 4. Map a value v (as a fraction of that maximum) to position
-   0.09 + 0.91·v on the colour ramp, and leave values below 2.2 % blank. Weak
+   0.09 + 0.91·v on the colour ramp. Values below 2.2 % are drawn in the
+   background fill, the ramp's first colour. Weak
    energy therefore still shows as dark blue and the peak stands out.
 5. Interpolate bilinearly between band centres and 5° bins for every pixel.
 
@@ -156,6 +161,9 @@ Loma South. All of them were verified against their THREDDS realtime files.
 - `EVEN_BAND_HZ` and `DIR_BIN_DEG`: CDIP's rebinning (0.01 Hz, 5°). Set them to
   `0` and `1` for raw, full-resolution MEM, which gives much sharper and higher
   peaks.
+- `DEFAULT_GAP` (`[0, 135]`): the omitted wedge. A station in `STATIONS` can
+  set its own `gap`, or `gap: null` for a full circle. `GAP_WARN_FRACTION`
+  sets when the hidden-energy note appears.
 - `SCALE_MAX`: `'spectrum'` (CDIP) or `'visible'` (rescale to the shown range).
 - `COLOR_FLOOR`, `TRANSPARENT_BELOW` and `STALE_AFTER_HOURS`.
 

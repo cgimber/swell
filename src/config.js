@@ -16,6 +16,15 @@ export const STATIONS = [
 ];
 export const DEFAULT_STATION = '100p1';
 
+// Wedge of directions (from, clockwise from N, in degrees) left out of the
+// plot, like the land-side gap on CDIP's map inset. Waves can't arrive from
+// land at these buoys, so this frees the space for period labels. A station can
+// override it with its own `gap` (or `gap: null` for a full circle). If more
+// than GAP_WARN_FRACTION of the visible energy falls inside the gap, the page
+// says so.
+export const DEFAULT_GAP = [0, 135];
+export const GAP_WARN_FRACTION = 0.05;
+
 // ── Plot ranges ─────────────────────────────────────────────────────────────
 // Same layout as CDIP's polar plot (measured from their images): radius is
 // linear in frequency, r = R·(INNER_OFFSET + (1 − INNER_OFFSET)·f/maxFreq), and

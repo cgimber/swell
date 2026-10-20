@@ -1,6 +1,7 @@
 // Jet-like ramp matching CDIP's polar-plot colour bar (sampled from their
 // image): dark blue → blue → cyan → green → yellow → red → near-black,
-// piecewise linear in RGB. Positions are along the ramp (0–1).
+// piecewise linear in RGB. Positions are along the ramp (0–1). Values below the
+// cutoff are drawn in the background fill, the ramp's first colour.
 import { TRANSPARENT_BELOW, COLOR_FLOOR } from './config.js';
 
 export const STOPS = [
@@ -27,15 +28,18 @@ export function buildLut(stops = STOPS) {
   return lut;
 }
 
+/** Background fill = colour of zero energy (the start of the ramp). */
+export const FILL_RGB = STOPS[0][1];
+
 /** Ramp position for a value given as a fraction of the scale max; NaN = not drawn. */
 export function rampPosition(v) {
   return v >= TRANSPARENT_BELOW ? Math.min(1, COLOR_FLOOR + (1 - COLOR_FLOOR) * v) : NaN;
 }
 
-/** CSS gradient for the colour bar, drawn with the same mapping as the plot. */
+/** CSS gradient for the colour bar, drawn with the same mapping and fill as the plot. */
 export function cssGradient(stops = STOPS) {
   const lut = buildLut(stops);
-  const parts = [`transparent ${(TRANSPARENT_BELOW * 100).toFixed(1)}%`];
+  const parts = [`rgb(${FILL_RGB.join(',')}) ${(TRANSPARENT_BELOW * 100).toFixed(1)}%`];
   for (let i = 0; i <= 40; i++) {
     const v = TRANSPARENT_BELOW + ((1 - TRANSPARENT_BELOW) * i) / 40;
     const li = Math.round(rampPosition(v) * 255) * 3;

@@ -10,7 +10,6 @@
   --err-fg: #b42318;
   --plot-bg: #ffffff;
   --plot-fg: #2b3038;
-  --plot-grid: rgba(30, 40, 55, 0.22);
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -26,7 +25,6 @@
     --err-fg: #ff8a80;
     --plot-bg: #0b0d10;
     --plot-fg: #d5dae1;
-    --plot-grid: rgba(220, 230, 240, 0.22);
   }
 }
 
@@ -99,6 +97,7 @@ select { width: 100%; padding: 0 12px; font-weight: 600; }
   display: flex; justify-content: space-between; font-size: 0.8rem;
   color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px;
 }
+.gap-note { margin: 6px 0 0; font-size: 0.8rem; color: var(--warn-fg); background: var(--warn-bg); padding: 6px 10px; border-radius: 8px; }
 .units { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
 footer { margin-top: 20px; font-size: 0.75rem; color: var(--muted); }
 

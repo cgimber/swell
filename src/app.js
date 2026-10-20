@@ -1,10 +1,10 @@
 import {
   STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
-  EVEN_BAND_HZ, DIR_BIN_DEG,
+  EVEN_BAND_HZ, DIR_BIN_DEG, DEFAULT_GAP, GAP_WARN_FRACTION,
 } from './config.js';
 import { loadStation } from './dataSource.js';
 import { cdipSpectrum } from './mem.js';
-import { prepareField, renderPolar } from './plot.js';
+import { prepareField, renderPolar, gapEnergyFraction } from './plot.js';
 import { cssGradient } from './colormap.js';
 
 const $ = (id) => document.getElementById(id);
@@ -131,11 +131,14 @@ function compass(deg) {
 // ── drawing ────────────────────────────────────────────────────────────────
 function draw() {
   const r = state.rec;
-  const { vmax } = renderPolar(canvas, {
-    field: state.field,
-    range: RANGES[state.range],
-    dp: r?.dp,
-  });
+  const meta = STATIONS.find((s) => s.id === state.station);
+  const gap = meta && 'gap' in meta ? meta.gap : DEFAULT_GAP;
+  const range = RANGES[state.range];
+  const { vmax, fLo, fHi } = renderPolar(canvas, { field: state.field, range, dp: r?.dp, gap });
+  const hidden = gapEnergyFraction(state.field, gap, fLo, fHi);
+  const note = $('gap-note');
+  note.hidden = !(hidden > GAP_WARN_FRACTION);
+  if (gap) note.textContent = `${Math.round(hidden * 100)}% of the energy in this range comes from ${gap[0]}–${gap[1]}°, which isn't drawn.`;
   $('cmin').textContent = r ? '0' : '';
   $('cmid').textContent = r ? fmtVal(vmax / 2) : '';
   $('cmax').textContent = r ? fmtVal(vmax) : '';
