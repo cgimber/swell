@@ -174,7 +174,7 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
   }
 
   // grid: dotted rings; major axes every 45° (N, 315, W, 225, S) and fainter
-  // minor axes every 15°, light so they read on the navy fill
+  // minor axes every 15°, light so they read on the dark fill
   const spoke = (deg) => {
     const t = (deg * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.beginPath();

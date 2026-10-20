@@ -6,7 +6,7 @@ from a [CDIP](https://cdip.ucsd.edu) buoy as a polar plot, like CDIP's own
 HTML/CSS/ES modules, no runtime dependencies.
 
 - Angle is the direction waves come **from**, with north up.
-  As on CDIP's map inset, the plot is a navy sector that leaves out the
+  As on CDIP's map inset, the plot is a filled sector that leaves out the
   land-side wedge from 0° to 135°. The period labels sit in that gap, outside
   the plot. Major axes run every 45° (N, 315°, W, 225°, S) and are the only
   labelled directions. Fainter minor axes run every 15°. If more than 5 % of the energy comes from inside the wedge, a
@@ -15,10 +15,11 @@ HTML/CSS/ES modules, no runtime dependencies.
   The layout matches CDIP's: radius is linear in frequency, and periods longer
   than 33 s are left blank, giving an empty centre.
 - Colour is energy density S(f, θ) in m²/Hz/deg, drawn in 10 discrete bands
-  using the colours of CDIP's map keys. The bands have round edges (e.g. 0,
+  of the [Turbo](https://research.google/blog/turbo-an-improved-rainbow-colormap-for-visualization/)
+  colormap. Turbo steps more evenly than CDIP's jet-style colours. The bands have round edges (e.g. 0,
   0.04, … 0.36) chosen so they cover the maximum of the whole spectrum. That
-  maximum is the same as on CDIP's plot. The lowest band is the navy
-  background.
+  maximum is the same as on CDIP's plot. The lowest band, Turbo's darkest
+  colour, is the background.
 - Type is [Inter](https://rsms.me/inter/), loaded from Google Fonts, with
   tabular figures for numbers.
 - The plot shows CDIP's **Swell only** view: 8–33 s, with the rim at 0.12 Hz.

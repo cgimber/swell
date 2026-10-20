@@ -1,19 +1,13 @@
-// Discrete colour levels, as on CDIP's map products (colours sampled from the
-// "Swell Height – Southern California Bight" key). The value range 0…top is cut
-// into LEVEL_COLORS.length equal bands with round edges; band 0 is also the
-// plot's background fill, so anything below the first edge blends into it.
+// Discrete colour levels using Google's Turbo colormap (exact values from
+// matplotlib's 256-entry table, sampled at 10 evenly spaced points). Turbo
+// steps more evenly than CDIP's jet-style key while keeping a blue → red read.
+// The value range 0…top is cut into LEVEL_COLORS.length equal bands with round
+// edges; band 0 is also the plot's background fill, so anything below the
+// first edge blends into it.
 export const LEVEL_COLORS = [
-  [0, 0, 171],
-  [55, 125, 246],
-  [117, 251, 253],
-  [97, 176, 79],
-  [128, 239, 101],
-  [204, 253, 197],
-  [255, 255, 84],
-  [244, 181, 63],
-  [234, 51, 35],
-  [163, 33, 21],
-];
+  '#30123b', '#4661d6', '#37a8fa', '#1ae4b6', '#71fe5f',
+  '#c8ef34', '#faba39', '#f56918', '#ca2a04', '#7a0403',
+].map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
 
 /** Background fill = colour of the lowest band. */
 export const FILL_RGB = LEVEL_COLORS[0];

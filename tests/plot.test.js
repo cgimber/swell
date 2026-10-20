@@ -78,3 +78,10 @@ test('gapEnergyFraction measures how much visible energy the gap hides', async (
   assert.ok(Math.abs(gapEnergyFraction(field, [0, 135], 0.04, 0.07) - inGapSum / (inGapSum + outSum)) < 1e-12);
   assert.equal(gapEnergyFraction(field, null, 0.04, 0.07), 0);
 });
+
+test('palette is Turbo sampled at 10 points (exact matplotlib values)', async () => {
+  const { LEVEL_COLORS, FILL_RGB } = await import('../src/colormap.js');
+  assert.deepEqual(LEVEL_COLORS[0], [0x30, 0x12, 0x3b]); // turbo(0)
+  assert.deepEqual(LEVEL_COLORS[9], [0x7a, 0x04, 0x03]); // turbo(1)
+  assert.deepEqual(FILL_RGB, LEVEL_COLORS[0]);
+});
