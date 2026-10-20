@@ -1,16 +1,19 @@
-// Jet-like ramp: very pale → dark blue → cyan → green → yellow → red → near-black.
+// Jet-like ramp matching CDIP's polar-plot colour bar (sampled from their
+// image): dark blue → blue → cyan → green → yellow → red → near-black,
+// piecewise linear in RGB. Positions are along the ramp (0–1).
+import { TRANSPARENT_BELOW, COLOR_FLOOR } from './config.js';
+
 export const STOPS = [
-  [0.00, [236, 241, 255]],
-  [0.06, [20, 20, 140]],
-  [0.22, [0, 80, 255]],
-  [0.38, [0, 220, 255]],
-  [0.52, [40, 230, 80]],
-  [0.66, [255, 240, 0]],
-  [0.82, [240, 30, 0]],
-  [1.00, [50, 0, 0]],
+  [21 / 310, [0, 0, 107]],
+  [0.165, [0, 0, 255]],
+  [0.33, [0, 250, 255]],
+  [0.5, [0, 127, 0]],
+  [0.665, [255, 250, 0]],
+  [0.83, [255, 0, 0]],
+  [1.0, [10, 0, 0]],
 ];
 
-/** Lookup table of 256 RGB triplets. */
+/** Lookup table of 256 RGB triplets over 0..1 (values below the first stop take its colour). */
 export function buildLut(stops = STOPS) {
   const lut = new Uint8ClampedArray(256 * 3);
   for (let i = 0; i < 256; i++) {
@@ -24,7 +27,19 @@ export function buildLut(stops = STOPS) {
   return lut;
 }
 
+/** Ramp position for a value given as a fraction of the scale max; NaN = not drawn. */
+export function rampPosition(v) {
+  return v >= TRANSPARENT_BELOW ? Math.min(1, COLOR_FLOOR + (1 - COLOR_FLOOR) * v) : NaN;
+}
+
+/** CSS gradient for the colour bar, drawn with the same mapping as the plot. */
 export function cssGradient(stops = STOPS) {
-  return `linear-gradient(to right, ${stops
-    .map(([t, c]) => `rgb(${c.join(',')}) ${(t * 100).toFixed(0)}%`).join(', ')})`;
+  const lut = buildLut(stops);
+  const parts = [`transparent ${(TRANSPARENT_BELOW * 100).toFixed(1)}%`];
+  for (let i = 0; i <= 40; i++) {
+    const v = TRANSPARENT_BELOW + ((1 - TRANSPARENT_BELOW) * i) / 40;
+    const li = Math.round(rampPosition(v) * 255) * 3;
+    parts.push(`rgb(${lut[li]},${lut[li + 1]},${lut[li + 2]}) ${(v * 100).toFixed(1)}%`);
+  }
+  return `linear-gradient(to right, ${parts.join(', ')})`;
 }

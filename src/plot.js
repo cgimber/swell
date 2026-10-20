@@ -1,7 +1,7 @@
 // Canvas polar plot of S(f,θ). North up, angle = direction waves come FROM,
 // radius increases with frequency (long periods near the centre).
-import { buildLut } from './colormap.js';
-import { TRANSPARENT_BELOW, RADIAL_SCALE, CENTER_HOLE } from './config.js';
+import { buildLut, rampPosition } from './colormap.js';
+import { INNER_OFFSET, SCALE_MAX } from './config.js';
 
 const LUT = buildLut();
 
@@ -55,33 +55,20 @@ export function sampleField(field, f, dir) {
 }
 
 /**
- * Radius ↔ frequency mapping. The centre disc (radius < r0) is left empty for
- * periods longer than the range's maxPeriod; fLo sits at r0 and fHi at R.
+ * Radius ↔ frequency mapping, as on CDIP's plot: linear in frequency, with
+ * f = 0 at radius INNER_OFFSET·R and f = fMax at R.
  */
-export function radialScale(fLo, fHi, R, { scale = RADIAL_SCALE, hole = CENTER_HOLE } = {}) {
-  const r0 = hole * R;
-  if (scale === 'linear') {
-    return {
-      r0,
-      fToR: (f) => r0 + ((f - fLo) / (fHi - fLo)) * (R - r0),
-      rToF: (r) => fLo + ((r - r0) / (R - r0)) * (fHi - fLo),
-    };
-  }
-  const L = Math.log(fHi / fLo);
+export function radialScale(fMax, R, inner = INNER_OFFSET) {
+  const r0 = inner * R;
   return {
-    r0,
-    fToR: (f) => r0 + (Math.log(f / fLo) / L) * (R - r0),
-    rToF: (r) => fLo * Math.exp(((r - r0) / (R - r0)) * L),
+    fToR: (f) => r0 + (f / fMax) * (R - r0),
+    rToF: (r) => ((r - r0) / (R - r0)) * fMax,
   };
 }
 
-/** Frequency limits for a range, clamped to the frequencies actually measured. */
-export function rangeLimits(range, frequency, bandwidth) {
-  let top = 0;
-  frequency.forEach((f, i) => {
-    if (Number.isFinite(f)) top = Math.max(top, f + (Number.isFinite(bandwidth?.[i]) ? bandwidth[i] / 2 : 0));
-  });
-  return { fLo: 1 / range.maxPeriod, fHi: Math.min(1 / range.minPeriod, top || Infinity) };
+/** Frequency limits for a range: data drawn between fLo and fHi, rim at fHi. */
+export function rangeLimits(range) {
+  return { fLo: 1 / range.maxPeriod, fHi: range.maxFreq };
 }
 
 function cssVar(el, name, fallback) {
@@ -90,9 +77,9 @@ function cssVar(el, name, fallback) {
 
 /**
  * Draw the plot. Returns { vmax } for the colour bar.
- * opts: { field, range, frequency, bandwidth, dp }
+ * opts: { field, range, dp }
  */
-export function renderPolar(canvas, { field, range, frequency, bandwidth, dp }) {
+export function renderPolar(canvas, { field, range, dp }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const cssSize = canvas.clientWidth;
   const size = Math.round(cssSize * dpr);
@@ -109,19 +96,19 @@ export function renderPolar(canvas, { field, range, frequency, bandwidth, dp }) 
   const font = Math.max(11, Math.round(cssSize / 34)) * dpr;
   const margin = font * 2.2;
   const cx = size / 2, cy = size / 2, R = size / 2 - margin;
-  const { fLo, fHi } = rangeLimits(range, frequency, bandwidth);
-  const { r0, fToR, rToF } = radialScale(fLo, fHi, R);
+  const { fLo, fHi } = rangeLimits(range);
+  const { fToR, rToF } = radialScale(fHi, R);
+  const r0 = fToR(fLo); // empty centre: periods > maxPeriod
 
   // background disc
   ctx.fillStyle = bg;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
   // field
-  const vmax = field ? visibleMax(field, fLo, fHi) : 0;
+  const vmax = field ? visibleMax(field, fLo, SCALE_MAX === 'visible' ? fHi : Infinity) : 0;
   if (field && vmax > 0) {
     const img = ctx.createImageData(size, size);
     const px = img.data;
-    const thresh = TRANSPARENT_BELOW;
     for (let y = 0; y < size; y++) {
       const dy = y + 0.5 - cy;
       for (let x = 0; x < size; x++) {
@@ -129,9 +116,9 @@ export function renderPolar(canvas, { field, range, frequency, bandwidth, dp }) 
         const r = Math.hypot(dx, dy);
         if (r > R || r < r0) continue;
         const dir = (Math.atan2(dx, -dy) * 180) / Math.PI; // clockwise from north
-        const v = sampleField(field, rToF(r), dir) / vmax;
-        if (!(v >= thresh)) continue;
-        const li = Math.min(255, Math.round(v * 255)) * 3;
+        const t = rampPosition(sampleField(field, rToF(r), dir) / vmax);
+        if (!(t >= 0)) continue;
+        const li = Math.round(t * 255) * 3;
         const o = (y * size + x) * 4;
         px[o] = LUT[li]; px[o + 1] = LUT[li + 1]; px[o + 2] = LUT[li + 2]; px[o + 3] = 255;
       }
@@ -161,6 +148,16 @@ export function renderPolar(canvas, { field, range, frequency, bandwidth, dp }) 
   ctx.beginPath(); ctx.arc(cx, cy, r0, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = fg;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+  // period range in the empty centre, as on CDIP's plot
+  if (r0 > font * 2.2) {
+    const loTxt = range.minPeriod;
+    ctx.fillStyle = fg;
+    ctx.font = `${Math.round(font * 0.8)}px system-ui, sans-serif`;
+    ctx.fillText('Period range', cx, cy - font * 0.55);
+    ctx.font = `600 ${Math.round(font * 0.95)}px system-ui, sans-serif`;
+    ctx.fillText(`${loTxt}–${range.maxPeriod} s`, cx, cy + font * 0.6);
+  }
 
   // spokes + compass labels every 30°
   ctx.strokeStyle = grid;

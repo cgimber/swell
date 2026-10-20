@@ -1,8 +1,9 @@
 import {
-  STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, DIRECTION_STEP_DEG, STALE_AFTER_HOURS, DATA_SOURCE,
+  STATIONS, DEFAULT_STATION, RANGES, DEFAULT_RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
+  EVEN_BAND_HZ, DIR_BIN_DEG,
 } from './config.js';
 import { loadStation } from './dataSource.js';
-import { directionalSpectrum } from './mem.js';
+import { cdipSpectrum } from './mem.js';
 import { prepareField, renderPolar } from './plot.js';
 import { cssGradient } from './colormap.js';
 
@@ -45,7 +46,7 @@ function syncRangeButtons() {
 syncRangeButtons();
 
 $('refresh').addEventListener('click', () => load());
-$('cbar').style.background = cssGradient();
+$('cbar').style.backgroundImage = cssGradient();
 $('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
 
 // ── loading ────────────────────────────────────────────────────────────────
@@ -68,7 +69,8 @@ async function load() {
     const rec = await loadStation(state.station);
     if (seq !== state.loadSeq) return;
     state.rec = rec;
-    state.field = prepareField(directionalSpectrum(rec, DIRECTION_STEP_DEG), rec.frequency);
+    const { rec: binned, spec } = cdipSpectrum(rec, { evenBandHz: EVEN_BAND_HZ, dirBinDeg: DIR_BIN_DEG });
+    state.field = prepareField(spec, binned.frequency);
     if (!state.field) throw new Error('No usable spectral bands in the latest record');
     setStatus('');
     updateSummary();
@@ -132,8 +134,6 @@ function draw() {
   const { vmax } = renderPolar(canvas, {
     field: state.field,
     range: RANGES[state.range],
-    frequency: r?.frequency ?? [0.58],
-    bandwidth: r?.bandwidth ?? [0.01],
     dp: r?.dp,
   });
   $('cmin').textContent = r ? '0' : '';
@@ -142,7 +142,7 @@ function draw() {
 }
 function fmtVal(v) {
   if (!(v > 0)) return '0';
-  return v >= 0.01 ? v.toPrecision(2) : v.toExponential(1);
+  return v >= 0.01 ? String(+v.toPrecision(3)) : v.toExponential(1);
 }
 
 let resizeRaf = 0;

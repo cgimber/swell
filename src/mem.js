@@ -81,6 +81,74 @@ export function directionalSpectrum(rec, stepDeg = 2) {
   return { dirs, step: stepDeg, S };
 }
 
+/**
+ * Rebin a spectrum onto evenly spaced bands (CDIP's "even" option: 0.01 Hz
+ * bands centred at 0.03, 0.04, … Hz). Each native band [f − bw/2, f + bw/2]
+ * contributes in proportion to its overlap; energy is overlap-averaged and the
+ * moments a1/b1/a2/b2 are energy-weighted. This reproduces CDIP's
+ * MEM_2dspectra.cdip?<stn>+even output exactly.
+ */
+export function rebinEven(rec, { df = 0.01, f0 = 0.03 } = {}) {
+  let top = 0;
+  rec.frequency.forEach((f, i) => {
+    if (Number.isFinite(f)) top = Math.max(top, f + (Number.isFinite(rec.bandwidth[i]) ? rec.bandwidth[i] / 2 : 0));
+  });
+  const nb = Math.floor((top - f0) / df + 0.5 + 1e-9);
+  const keys = ['a1', 'b1', 'a2', 'b2'];
+  const out = { ...rec, frequency: [], bandwidth: [], energy: [], a1: [], b1: [], a2: [], b2: [] };
+  for (let k = 0; k < nb; k++) {
+    const fc = f0 + k * df, lo = fc - df / 2, hi = fc + df / 2;
+    let e = 0, w = 0;
+    const m = { a1: 0, b1: 0, a2: 0, b2: 0 };
+    rec.frequency.forEach((f, i) => {
+      const bw = rec.bandwidth[i];
+      const ov = Math.min(hi, f + bw / 2) - Math.max(lo, f - bw / 2);
+      if (!(ov > 0)) return;
+      const E = rec.energy[i];
+      if (!Number.isFinite(E) || !keys.every((v) => Number.isFinite(rec[v][i]))) return;
+      e += E * ov; w += ov;
+      for (const v of keys) m[v] += E * rec[v][i] * ov;
+    });
+    out.frequency.push(+fc.toFixed(6));
+    out.bandwidth.push(df);
+    out.energy.push(w > 0 ? e / w : NaN);
+    for (const v of keys) out[v].push(e > 0 ? m[v] / e : NaN);
+  }
+  return out;
+}
+
+/**
+ * Average a 1° spectrum into wider direction bins centred on multiples of
+ * `binDeg` (CDIP uses 5°: bins centred at 5, 10, … 360). Output keeps the
+ * usual layout: index k ↔ direction k·binDeg.
+ */
+export function binDirections(spec, binDeg = 5) {
+  if (spec.step !== 1) throw new Error('binDirections expects a 1° spectrum');
+  if (binDeg === 1) return spec;
+  const nb = Math.round(360 / binDeg), h = Math.floor(binDeg / 2);
+  const S = spec.S.map((row) => {
+    if (!row) return row;
+    const out = new Float64Array(nb);
+    for (let k = 0; k < nb; k++) {
+      const c = k * binDeg;
+      let s = 0;
+      for (let d = -h; d <= h; d++) s += row[(c + d + 360) % 360];
+      out[k] = s / (2 * h + 1);
+    }
+    return out;
+  });
+  return { dirs: directionGrid(binDeg), step: binDeg, S };
+}
+
+/**
+ * The full CDIP polar-plot pipeline: optional rebin to even bands, MEM on a 1°
+ * grid, then average into `dirBinDeg` bins.
+ */
+export function cdipSpectrum(rec, { evenBandHz = 0.01, dirBinDeg = 5 } = {}) {
+  const r = evenBandHz ? rebinEven(rec, { df: evenBandHz }) : rec;
+  return { rec: r, spec: binDirections(directionalSpectrum(r, 1), dirBinDeg) };
+}
+
 /** Index of the frequency band with maximum energy (ignores non-finite). */
 export function peakIndex(energy) {
   let best = -1, bv = -Infinity;
