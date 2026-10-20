@@ -4,6 +4,7 @@ import { LEVEL_COLORS, FILL_RGB, levelStep, levelIndex } from './colormap.js';
 import { INNER_OFFSET, SCALE_MAX } from './config.js';
 
 const FONT = 'Inter, system-ui, sans-serif';
+const MAJOR_DEG = 30; // labelled major axes; minor axes every 15°
 
 /**
  * Turn the MEM output into a dense field ready for sampling: skipped bands
@@ -173,7 +174,7 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     ctx.restore();
   }
 
-  // grid: dotted rings; major axes every 45° (N, 315, W, 225, S) and fainter
+  // grid: dotted rings; major axes every MAJOR_DEG (N, 330, 300, W, …) and fainter
   // minor axes every 15°, light so they read on the dark fill
   const spoke = (deg) => {
     const t = (deg * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
@@ -186,9 +187,9 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
   ctx.lineWidth = dpr;
   ctx.setLineDash([dpr, 3 * dpr]);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  for (let a = 0; a < 360; a += 15) if (a % 45 && !inGap(a, gap) && !onEdge(a)) spoke(a);
+  for (let a = 0; a < 360; a += 15) if (a % MAJOR_DEG && !inGap(a, gap) && !onEdge(a)) spoke(a);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-  for (let a = 0; a < 360; a += 45) if (!inGap(a, gap) && !onEdge(a)) spoke(a);
+  for (let a = 0; a < 360; a += MAJOR_DEG) if (!inGap(a, gap) && !onEdge(a)) spoke(a);
   const rings = range.rings.filter((p) => 1 / p > fLo && 1 / p < fHi);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
   for (const p of rings) { arcPath(fToR(1 / p)); ctx.stroke(); }
@@ -215,12 +216,12 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     }
   }
 
-  // labels on the major axes only (every 45°), none inside the gap
+  // labels on the major axes only, none inside the gap
   ctx.fillStyle = fg;
   ctx.textAlign = 'center';
   ctx.font = `500 ${font}px ${FONT}`;
   const names = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
-  for (let a = 0; a < 360; a += 45) {
+  for (let a = 0; a < 360; a += MAJOR_DEG) {
     if (gap && a !== g0 % 360 && (inGap(a, gap) || a === g1 % 360)) continue; // gap start (N) keeps its label
     const t = (a * Math.PI) / 180, s = Math.sin(t), c = -Math.cos(t);
     ctx.fillText(names[a] ?? `${a}°`, cx + (R + margin * 0.5) * s, cy + (R + margin * 0.5) * c);

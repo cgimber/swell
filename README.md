@@ -8,9 +8,9 @@ HTML/CSS/ES modules, no runtime dependencies.
 - Angle is the direction waves come **from**, with north up.
   As on CDIP's map inset, the plot is a filled sector that leaves out the
   land-side wedge from 0° to 135°. The period labels sit in that gap, outside
-  the plot. Major axes run every 45° (N, 315°, W, 225°, S) and are the only
-  labelled directions. Fainter minor axes run every 15°. If more than 5 % of the energy comes from inside the wedge, a
-  note says so.
+  the plot. Major axes run every 30° (N, 330°, 300°, W, 240°, 210°, S, 150°)
+  and are the only labelled directions. Fainter minor axes run every 15°. If
+  more than 5 % of the energy comes from inside the wedge, a note says so.
 - Radius is period: long periods sit near the centre, short periods at the rim.
   The layout matches CDIP's: radius is linear in frequency, and periods longer
   than 33 s are left blank, giving an empty centre.
