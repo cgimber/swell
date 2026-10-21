@@ -3,7 +3,8 @@
 A static, phone-first page that shows the **latest directional wave spectrum**
 from a [CDIP](https://cdip.ucsd.edu) buoy as a polar plot, like CDIP's own
 "polar spectrum" product. There's no backend and no build step: plain
-HTML/CSS/ES modules, no runtime dependencies.
+HTML/CSS/ES modules. The only runtime dependency is Leaflet (from a CDN) for
+the station map.
 
 - Angle is the direction waves come **from**, with north up.
   As on CDIP's map inset, the plot is a filled sector that leaves out the
@@ -23,10 +24,13 @@ HTML/CSS/ES modules, no runtime dependencies.
 - Type is [Inter](https://rsms.me/inter/), loaded from Google Fonts, with
   tabular figures for numbers.
 - The plot shows CDIP's **Swell only** view: 8–33 s, with the rim at 0.12 Hz.
-- The header shows station, sample time (local and UTC), the data's age,
+- The header shows station, the data's age (hover for the sample time),
   wave height (Hs, ft and m), peak period (Tp) and peak direction (Dp). A pink
   marker on the rim shows Dp. Data older than
   2 hours gets a warning.
+- The plot's empty centre shows a satellite map of the selected buoy. Tap it to
+  open a map of all stations; tap a station to switch to it (× closes the map).
+  Imagery is Esri World Imagery, via Leaflet.
 
 ## How it works
 
@@ -145,7 +149,10 @@ The `test` workflow runs `npm test` on every push and PR.
    `https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/realtime/<id>_rt.nc.dds`,
    where `<id>` looks like `045p1`. Directional buoys have
    `waveA1Value`…`waveB2Value`.
-2. Add `{ id: '<id>', name: '<Name>' }` to `STATIONS` in `src/config.js`.
+2. Add `{ id: '<id>', name: '<Name>', lat, lon }` to `STATIONS` in
+   `src/config.js`, with the position from `metaDeployLatitude` and
+   `metaDeployLongitude`. Add `label: 'left' | 'top' | 'bottom'` if its name
+   overlaps another on the station map.
 3. In static mode, the workflow picks it up on its next run because it reads
    the same list.
 

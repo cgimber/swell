@@ -6,6 +6,7 @@ import { loadStation } from './dataSource.js';
 import { cdipSpectrum } from './mem.js';
 import { prepareField, renderPolar, gapEnergyFraction } from './plot.js';
 import { LEVEL_COLORS, formatEdge } from './colormap.js';
+import { createStationMap } from './stationMap.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('plot');
@@ -24,13 +25,18 @@ const state = {
 function pick(v, allowed, dflt) { return allowed.includes(v) ? v : dflt; }
 
 // ── controls ───────────────────────────────────────────────────────────────
-const select = $('station');
-for (const s of STATIONS) select.add(new Option(`${s.name} (${s.id.replace(/p\d+$/, '')})`, s.id));
-select.value = state.station;
-select.addEventListener('change', () => { state.station = select.value; store.set('station', state.station); load(); });
+const stationMap = createStationMap(canvas.parentElement, {
+  stations: STATIONS,
+  selected: state.station,
+  onSelect(id) {
+    state.station = id;
+    store.set('station', id);
+    stationMap.setSelected(id);
+    load();
+  },
+});
 
 
-$('refresh').addEventListener('click', () => load());
 for (const [r, g, b] of LEVEL_COLORS) {
   const cell = document.createElement('span');
   cell.style.background = `rgb(${r},${g},${b})`;
@@ -47,7 +53,6 @@ function setStatus(text, kind = '') {
 
 async function load() {
   const seq = ++state.loadSeq;
-  $('refresh').classList.add('spinning');
   if (!state.rec || state.rec.station !== state.station) {
     state.rec = null; state.field = null;
     clearSummary();
@@ -68,8 +73,6 @@ async function load() {
     if (seq !== state.loadSeq) return;
     console.error(err);
     setStatus(`Couldn't load data: ${err.message}`, 'error');
-  } finally {
-    if (seq === state.loadSeq) $('refresh').classList.remove('spinning');
   }
 }
 
@@ -83,7 +86,7 @@ const fmtLocal = new Intl.DateTimeFormat(undefined, {
 
 function clearSummary() {
   const meta = STATIONS.find((s) => s.id === state.station);
-  $('station-name').textContent = `${meta.name} · ${state.station}`;
+  $('station-name').textContent = stationTitle(meta.name, state.station);
   $('times').textContent = '';
   $('stale').hidden = true;
   for (const id of ['hs', 'tp', 'dp']) $(id).textContent = '—';
@@ -92,17 +95,21 @@ function clearSummary() {
 function updateSummary() {
   const r = state.rec;
   const meta = STATIONS.find((s) => s.id === r.station);
-  $('station-name').textContent = `${meta?.name ?? r.name} · ${r.station}`;
+  $('station-name').textContent = stationTitle(meta?.name ?? r.name, r.station);
   const t = new Date(r.time);
-  $('times').textContent = `${fmtLocal.format(t)} · ${fmtUtc.format(t)} UTC · ${ageText(t)}`;
+  $('times').textContent = ageText(t);
+  $('times').title = `${fmtLocal.format(t)} · ${fmtUtc.format(t)} UTC`; // full sample time on hover
   const ageH = (Date.now() - t) / 3.6e6;
   $('stale').hidden = ageH <= STALE_AFTER_HOURS;
   $('stale').textContent = `⚠ Data is ${ageText(t)} — the buoy may not be reporting.`;
   $('hs').innerHTML = Number.isFinite(r.hs)
-    ? `${(r.hs * 3.28084).toFixed(1)} ft<small>${r.hs.toFixed(2)} m</small>` : '—';
-  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)} s<small>${(1 / r.tp).toFixed(3)} Hz</small>` : '—';
+    ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span><small>${r.hs.toFixed(2)} m</small>` : '—';
+  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span><small>${(1 / r.tp).toFixed(3)} Hz</small>` : '—';
   $('dp').innerHTML = Number.isFinite(r.dp) ? `${Math.round(r.dp)}°<small>${compass(r.dp)}</small>` : '—';
 }
+
+// "Torrey Pines Outer (100)": CDIP's station number, without the deployment suffix
+function stationTitle(name, id) { return `${name} (${id.replace(/p\d+$/, '')})`; }
 
 function ageText(t) {
   const min = Math.max(0, Math.round((Date.now() - t) / 60000));
@@ -122,7 +129,8 @@ function draw() {
   const r = state.rec;
   const meta = STATIONS.find((s) => s.id === state.station);
   const gap = meta && 'gap' in meta ? meta.gap : DEFAULT_GAP;
-  const { step, fLo, fHi } = renderPolar(canvas, { field: state.field, range: RANGE, dp: r?.dp, gap });
+  const { step, fLo, fHi, R, r0 } = renderPolar(canvas, { field: state.field, range: RANGE, dp: r?.dp, gap });
+  stationMap.layout({ R, r0 });
   const hidden = gapEnergyFraction(state.field, gap, fLo, fHi);
   const note = $('gap-note');
   note.hidden = !(hidden > GAP_WARN_FRACTION);
