@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "swell-live",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "live-server@1.2.2", "--port=8000", "--no-browser", "--watch=index.html,styles.css,src"],
+      "port": 8000
+    }
+  ]
+}

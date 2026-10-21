@@ -24,7 +24,8 @@ HTML/CSS/ES modules, no runtime dependencies.
   tabular figures for numbers.
 - The plot shows CDIP's **Swell only** view: 8–33 s, with the rim at 0.12 Hz.
 - The header shows station, sample time (local and UTC), the data's age,
-  Hs (ft and m), Tp and Dp. A pink marker on the rim shows Dp. Data older than
+  wave height (Hs, ft and m), peak period (Tp) and peak direction (Dp). A pink
+  marker on the rim shows Dp. Data older than
   2 hours gets a warning.
 
 ## How it works
