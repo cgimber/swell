@@ -95,7 +95,8 @@ function cssVar(el, name, fallback) {
 }
 
 /**
- * Draw the plot. Returns { vmax, step } for the colour key.
+ * Draw the plot. Returns { vmax, step } for the colour key, plus the outer and
+ * inner radii R and r0.
  * opts: { field, range, dp, gap } — gap: [fromDeg, toDeg] wedge to leave out, or null
  */
 export function renderPolar(canvas, { field, range, dp, gap = null }) {
@@ -238,7 +239,8 @@ export function renderPolar(canvas, { field, range, dp, gap = null }) {
     ctx.lineTo(cx + base * s + w * c, cy + base * c - w * s);
     ctx.closePath(); ctx.fill();
   }
-  return { vmax, step, fLo, fHi };
+  // R and r0 in CSS px, for overlays positioned on the plot
+  return { vmax, step, fLo, fHi, R: R / dpr, r0: r0 / dpr };
 }
 
 function haloText(ctx, text, x, y, halo) {

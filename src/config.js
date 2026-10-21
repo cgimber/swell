@@ -7,12 +7,14 @@ export const DATA_SOURCE = 'direct';
 
 // ── Stations ───────────────────────────────────────────────────────────────
 // `id` is the CDIP platform id used in the THREDDS file name (<id>_rt.nc).
+// `lat`/`lon` are the deployment position (metaDeployLatitude/Longitude).
+// `label` is the side of the dot its name goes on in the station map (default right).
 export const STATIONS = [
-  { id: '100p1', name: 'Torrey Pines Outer' },
-  { id: '153p1', name: 'Del Mar Nearshore' },
-  { id: '201p1', name: 'Scripps Nearshore' },
-  { id: '220p1', name: 'Mission Bay West' },
-  { id: '191p1', name: 'Point Loma South' },
+  { id: '100p1', name: 'Torrey Pines Outer', lat: 32.93, lon: -117.392, label: 'left' },
+  { id: '153p1', name: 'Del Mar Nearshore', lat: 32.95654, lon: -117.27956, label: 'top' },
+  { id: '201p1', name: 'Scripps Nearshore', lat: 32.86785, lon: -117.26667, label: 'left' },
+  { id: '220p1', name: 'Mission Bay West', lat: 32.749416, lon: -117.4985 },
+  { id: '191p1', name: 'Point Loma South', lat: 32.516933, lon: -117.42522 },
 ];
 export const DEFAULT_STATION = '100p1';
 

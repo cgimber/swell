@@ -11,26 +11,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 </head>
 <body>
   <main>
-    <header class="top">
-      <label class="station-picker">
-        <span class="visually-hidden">Station</span>
-        <select id="station"></select>
-      </label>
-      <button id="refresh" class="icon-btn" type="button" aria-label="Refresh">↻</button>
-    </header>
-
     <section id="summary" class="summary" aria-live="polite">
       <h1 id="station-name">—</h1>
       <p id="times" class="times"></p>
       <div id="stale" class="stale" hidden></div>
       <dl class="stats">
-        <div><dt>Hs</dt><dd id="hs">—</dd></div>
-        <div><dt>Tp</dt><dd id="tp">—</dd></div>
-        <div><dt>Dp</dt><dd id="dp">—</dd></div>
+        <div><dt><span class="long">Wave </span>height</dt><dd id="hs">—</dd></div>
+        <div><dt><span class="long">Peak </span>period</dt><dd id="tp">—</dd></div>
+        <div><dt><span class="long">Peak </span>direction</dt><dd id="dp">—</dd></div>
       </dl>
     </section>
 
@@ -38,6 +32,9 @@
     <section class="plot-wrap">
       <canvas id="plot" role="img" aria-label="Polar directional wave spectrum"></canvas>
       <div id="status" class="status" role="status"></div>
+      <div class="station-map" aria-label="Station map"></div>
+      <button class="map-inset-btn" type="button" aria-label="Change station"></button>
+      <button class="map-close" type="button" aria-label="Close map">×</button>
     </section>
 
     <section class="colorbar" aria-label="Colour key">
@@ -51,6 +48,7 @@
     <footer>
       Data: <a href="https://cdip.ucsd.edu" rel="noopener">CDIP</a>, Scripps Institution of Oceanography.
       MEM (Lygre &amp; Krogstad 1986). <span id="source-mode"></span>
+      Map imagery © Esri, Maxar, Earthstar Geographics.
     </footer>
   </main>
   <script type="module" src="src/app.js"></script>
