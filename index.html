@@ -19,8 +19,16 @@
   <main>
     <section id="summary" class="summary" aria-live="polite">
       <h1 id="station-name">—</h1>
+      <label id="station-fallback" class="station-fallback" hidden>
+        <span class="visually-hidden">Station</span>
+        <select id="station-select"></select>
+      </label>
       <p id="times" class="times"></p>
       <div id="stale" class="stale" hidden></div>
+      <div id="status" class="notice" role="status" hidden>
+        <p id="status-text"></p>
+        <button id="retry" type="button" hidden>Try again</button>
+      </div>
       <dl class="stats">
         <div><dt><span class="long">Wave </span>height</dt><dd id="hs">—</dd></div>
         <div><dt><span class="long">Peak </span>period</dt><dd id="tp">—</dd></div>
@@ -31,7 +39,6 @@
 
     <section class="plot-wrap">
       <canvas id="plot" role="img" aria-label="Polar directional wave spectrum"></canvas>
-      <div id="status" class="status" role="status"></div>
       <div class="station-map" aria-label="Station map"></div>
       <button class="map-inset-btn" type="button" aria-label="Change station"></button>
       <button class="map-close" type="button" aria-label="Close map">×</button>

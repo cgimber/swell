@@ -67,10 +67,42 @@ export function datasetUrl(platform) {
   return `${THREDDS_BASE}/${platform}_rt.nc`;
 }
 
-async function getText(fetchFn, url) {
-  const res = await fetchFn(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} from THREDDS for ${url}`);
-  return res.text();
+/** A failed data request. `status` is the HTTP status, if the server answered. */
+export class DataError extends Error {
+  constructor(message, { status = null, url = null, cause } = {}) {
+    super(message, cause ? { cause } : undefined);
+    this.name = 'DataError';
+    this.status = status;
+    this.url = url;
+  }
+}
+
+// THREDDS briefly answers 404 while it swaps in a station's new file (every
+// 30 min), so a 404 or 5xx gets one retry. Every attempt has a timeout so a
+// stalled connection can't leave the page loading forever.
+const RETRYABLE = (status) => status === 404 || status === 429 || status >= 500;
+
+async function getText(fetchFn, url, { retries = 1, timeoutMs = 20_000, retryDelayMs = 2_000 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => ctl?.abort(), timeoutMs);
+    try {
+      const res = await fetchFn(url, ctl ? { signal: ctl.signal } : undefined);
+      if (res.ok) return await res.text();
+      if (!RETRYABLE(res.status) || attempt >= retries) {
+        throw new DataError(`CDIP's data server answered HTTP ${res.status}`, { status: res.status, url });
+      }
+    } catch (err) {
+      if (err instanceof DataError) throw err;
+      if (attempt >= retries) {
+        const msg = err?.name === 'AbortError' ? "CDIP's data server took too long to respond" : "Couldn't reach CDIP's data server";
+        throw new DataError(msg, { url, cause: err });
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise((r) => setTimeout(r, retryDelayMs));
+  }
 }
 
 // Brackets are left unescaped — THREDDS rejects percent-encoded constraints.
@@ -83,29 +115,29 @@ const spectralVars = ['waveEnergyDensity', 'waveA1Value', 'waveB1Value', 'waveA2
  *  2. scalars for the last `lookback` records → newest one flagged good
  *  3. spectra + moments for that single record
  */
-export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 6 } = {}) {
+export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 6, ...httpOpts } = {}) {
   const base = datasetUrl(platform);
-  const dims = parseDdsDims(await getText(fetchFn, `${base}.dds?waveTime,waveFrequency`));
+  const dims = parseDdsDims(await getText(fetchFn, `${base}.dds?waveTime,waveFrequency`, httpOpts));
   const N = dims.waveTime, F = dims.waveFrequency;
-  if (!N || !F) throw new Error(`No wave data in ${platform}`);
+  if (!N || !F) throw new DataError(`No wave data in ${platform}`);
 
   const lo = Math.max(0, N - lookback), hi = N - 1;
   const q1 = [
     ...scalarVars.map((v) => `${v}[${lo}:${hi}]`),
     `waveFrequency[0:${F - 1}]`, `waveBandwidth[0:${F - 1}]`, 'metaStationName',
   ].join(',');
-  const s = parseAscii(await getText(fetchFn, `${base}.ascii?${q1}`));
+  const s = parseAscii(await getText(fetchFn, `${base}.ascii?${q1}`, httpOpts));
 
   const flags = s.waveFlagPrimary.values;
   let k = -1;
   for (let i = flags.length - 1; i >= 0; i--) {
     if (flags[i] === FLAG_GOOD && Number.isFinite(s.waveHs.values[i])) { k = i; break; }
   }
-  if (k < 0) throw new Error(`No good-quality record in the last ${lookback} samples`);
+  if (k < 0) throw new DataError(`No good-quality record in the last ${lookback} samples`);
   const idx = lo + k;
 
   const q2 = spectralVars.map((v) => `${v}[${idx}][0:${F - 1}]`).join(',');
-  const sp = parseAscii(await getText(fetchFn, `${base}.ascii?${q2}`));
+  const sp = parseAscii(await getText(fetchFn, `${base}.ascii?${q2}`, httpOpts));
 
   return buildRecord(platform, {
     time: s.waveTime.values[k],

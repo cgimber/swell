@@ -30,7 +30,14 @@ the station map.
   2 hours gets a warning.
 - The plot's empty centre shows a satellite map of the selected buoy. Tap it to
   open a map of all stations; tap a station to switch to it (× closes the map).
-  Imagery is Esri World Imagery, via Leaflet.
+  Imagery is Esri World Imagery, via Leaflet. If Leaflet fails to load, a plain
+  station dropdown appears instead.
+- If a station's data can't be loaded, a banner above the plot explains why and
+  offers **Try again**. The station picker stays usable, so you can switch
+  station. Each request times out after 20 s. A 404 or server error is retried
+  once automatically, because THREDDS briefly returns 404 while it replaces a
+  station's file. The page remembers a station only once its data has loaded,
+  so reopening it never gets stuck on a failing station.
 
 ## How it works
 
