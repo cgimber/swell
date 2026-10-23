@@ -107,7 +107,8 @@ npm start            # python3 -m http.server 8000 → http://localhost:8000
 npm test             # node --test: parser, MEM, direction convention, plot helpers
 ```
 
-URL parameter: `?station=201p1`.
+URL parameter: `?station=201` (CDIP station number; `201p1` also works). The address bar
+follows the selected station, so it can be copied to share a link.
 The last choices are also remembered in `localStorage`.
 
 ## Data source config

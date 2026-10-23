@@ -18,7 +18,7 @@
 <body>
   <main>
     <section id="summary" class="summary" aria-live="polite">
-      <h1 id="station-name">—</h1>
+      <h1 id="station-name">&nbsp;</h1>
       <label id="station-fallback" class="station-fallback" hidden>
         <span class="visually-hidden">Station</span>
         <select id="station-select"></select>
@@ -30,15 +30,16 @@
         <button id="retry" type="button" hidden>Try again</button>
       </div>
       <dl class="stats">
-        <div><dt><span class="long">Wave </span>height</dt><dd id="hs">—</dd></div>
-        <div><dt><span class="long">Peak </span>period</dt><dd id="tp">—</dd></div>
-        <div><dt><span class="long">Peak </span>direction</dt><dd id="dp">—</dd></div>
+        <div><dt><span class="long">Wave </span>height</dt><dd id="hs">&nbsp;<small>&nbsp;</small></dd></div>
+        <div><dt><span class="long">Peak </span>period</dt><dd id="tp">&nbsp;<small>&nbsp;</small></dd></div>
+        <div><dt><span class="long">Peak </span>direction</dt><dd id="dp">&nbsp;<small>&nbsp;</small></dd></div>
       </dl>
     </section>
 
 
     <section class="plot-wrap">
       <canvas id="plot" role="img" aria-label="Polar directional wave spectrum"></canvas>
+      <div class="map-backdrop" aria-hidden="true"></div>
       <div class="station-map" aria-label="Station map"></div>
       <button class="map-inset-btn" type="button" aria-label="Change station"></button>
       <div id="map-hint" class="map-hint" aria-hidden="true" hidden>
@@ -56,14 +57,16 @@
       <div id="key" class="key" aria-hidden="true"></div>
       <div id="key-labels" class="key-labels"></div>
       <p id="gap-note" class="gap-note" hidden></p>
-      <p class="units">Angle = direction waves come <em>from</em> · radius = period</p>
     </section>
 
-    <footer>
-      Data: <a href="https://cdip.ucsd.edu" rel="noopener">CDIP</a>, Scripps Institution of Oceanography.
-      MEM (Lygre &amp; Krogstad 1986). <span id="source-mode"></span>
-      Map imagery © Esri, Maxar, Earthstar Geographics.
-    </footer>
+    <div class="notes">
+      <p class="units">Angle = direction waves come <em>from</em><br>Radius = swell period</p>
+      <footer>
+        Data: <a href="https://cdip.ucsd.edu" rel="noopener">CDIP</a>, Scripps Institution of Oceanography.
+        MEM (Lygre &amp; Krogstad 1986). <span id="source-mode"></span>
+        Map imagery © Esri, Maxar, Earthstar Geographics.
+      </footer>
+    </div>
   </main>
   <script type="module" src="src/app.js"></script>
 </body>

@@ -49,12 +49,18 @@ export function createStationMap(wrap, { stations, selected, onSelect, onOpen })
     for (const h of ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard']) {
       map[h][on ? 'enable' : 'disable']();
     }
+    // Leaflet makes the container a tab stop; while closed the inset button is the only one
+    el.tabIndex = on ? 0 : -1;
   };
   const allBounds = () => L.latLngBounds(stations.map((s) => [s.lat, s.lon]));
 
   function markSelected() {
     for (const [id, m] of markers) {
-      m.getElement()?.classList.toggle('selected', id === current);
+      const icon = m.getElement();
+      if (!icon) continue;
+      icon.tabIndex = open ? 0 : -1; // stations are only pickable while open
+      icon.classList.toggle('selected', id === current);
+      m.getTooltip()?.getElement()?.classList.toggle('selected', id === current);
     }
   }
 
@@ -82,6 +88,10 @@ export function createStationMap(wrap, { stations, selected, onSelect, onOpen })
 
   insetBtn.addEventListener('click', expand);
   closeBtn.addEventListener('click', collapse);
+  wrap.querySelector('.map-backdrop').addEventListener('click', collapse);
+  document.addEventListener('keydown', (e) => {
+    if (open && e.key === 'Escape') collapse();
+  });
 
   setInteractive(false);
   const s0 = station(current);
