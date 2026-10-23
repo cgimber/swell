@@ -132,6 +132,21 @@ a { color: inherit; }
 .station-map .stn-label::before { display: none; }
 .plot-wrap:not(.open) .station-map .stn-label { display: none; }
 
+/* Handwritten hint in the plot's empty upper-right wedge, its arrow pointing
+   down-left at the inset. Anchored to the plot centre so it tracks the inset's
+   size. Shown until the map has been opened once. */
+.map-hint {
+  position: absolute; z-index: 2; pointer-events: none;
+  left: calc(50% + var(--inset-r, 0px) * 0.85); bottom: calc(50% + var(--inset-r, 0px) * 0.55);
+  color: var(--muted); transform: rotate(-3deg); transform-origin: bottom left;
+  font: 500 1.25rem/1.05 Caveat, "Segoe Print", "Bradley Hand", cursive; white-space: nowrap;
+  transition: opacity 200ms ease;
+}
+.map-hint[hidden] { display: none; }
+.map-hint span { display: block; margin-left: 20px; }
+.map-hint svg { display: block; margin-top: 2px; }
+.plot-wrap.open .map-hint, .plot-wrap.no-map .map-hint { opacity: 0; }
+
 .colorbar { margin-top: 8px; }
 .key-title { margin: 0 0 6px; font-size: 0.85rem; font-weight: 700; letter-spacing: -0.01em; }
 .key-title span { font-weight: 500; color: var(--muted); }
