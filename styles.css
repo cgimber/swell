@@ -210,8 +210,10 @@ a { color: inherit; }
 }
 .key-labels span { position: absolute; top: 0; transform: translateX(-50%); }
 .key-labels span:first-child { transform: none; }
-/* too narrow for all ten: label every other band edge */
-@media (max-width: 520px) { .key-labels span:nth-child(even) { display: none; } }
+.key-labels span:last-child { transform: translateX(-100%); }
+/* min, median and max on phones; more edges, then all, as space allows */
+@media (max-width: 600px) { .key-labels span[data-tier="2"] { display: none; } }
+@media (max-width: 460px) { .key-labels span[data-tier="1"] { display: none; } }
 .gap-note { margin: 6px 0 0; font-size: 0.8rem; color: var(--warn-fg); background: var(--warn-bg); padding: 6px 10px; border-radius: 8px; }
 /* Units note and credits: stacked on phones, side by side from 521px. */
 .notes { display: grid; gap: 20px 24px; margin-top: 16px; align-items: start; }

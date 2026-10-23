@@ -201,11 +201,15 @@ function draw() {
   const note = $('gap-note');
   note.hidden = !(hidden > GAP_WARN_FRACTION);
   if (gap) note.textContent = `${Math.round(hidden * 100)}% of the ${RANGE.minPeriod}–${RANGE.maxPeriod} s energy comes from ${gap[0]}–${gap[1]}°, which isn't drawn.`;
-  // key labels: the lower edge of each band, as on CDIP's keys
-  $('key-labels').replaceChildren(...(r && step ? LEVEL_COLORS.map((_, i) => {
+  // key labels: every band edge from 0 to the top of the scale. Tier 0 (min,
+  // median, max) always shows; CSS reveals tier 1 (two more, keeping the
+  // spacing near even) and then tier 2 (the rest) as the screen widens.
+  const n = LEVEL_COLORS.length;
+  $('key-labels').replaceChildren(...(r && step ? Array.from({ length: n + 1 }, (_, i) => {
     const el = document.createElement('span');
     el.textContent = formatEdge(i * step);
-    el.style.left = `${i * 10}%`;
+    el.style.left = `${(i / n) * 100}%`;
+    el.dataset.tier = i % (n / 2) === 0 ? 0 : i === 2 || i === n - 2 ? 1 : 2;
     return el;
   }) : []));
 }
