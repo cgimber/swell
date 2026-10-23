@@ -11,7 +11,7 @@ const ANIM_MS = 350; // keep in step with the clip-path transition in styles.css
  * wrap: the .plot-wrap element; it gets an `open` class while the map is open.
  * Returns { setSelected(id), layout({ R, r0 }) }.
  */
-export function createStationMap(wrap, { stations, selected, onSelect }) {
+export function createStationMap(wrap, { stations, selected, onSelect, onOpen }) {
   const el = wrap.querySelector('.station-map');
   const insetBtn = wrap.querySelector('.map-inset-btn');
   const closeBtn = wrap.querySelector('.map-close');
@@ -67,6 +67,7 @@ export function createStationMap(wrap, { stations, selected, onSelect }) {
     map.flyToBounds(allBounds(), { padding: [pad, pad], duration: ANIM_MS / 1000 });
     markSelected();
     closeBtn.focus();
+    onOpen?.();
   }
 
   function collapse() {

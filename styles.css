@@ -132,6 +132,19 @@ a { color: inherit; }
 .station-map .stn-label::before { display: none; }
 .plot-wrap:not(.open) .station-map .stn-label { display: none; }
 
+/* Handwritten hint in the plot's empty top-left corner, pointing at the inset.
+   Shown until the map has been opened once. */
+.map-hint {
+  position: absolute; z-index: 2; top: 4px; left: 4px; pointer-events: none;
+  color: var(--muted); transform: rotate(-4deg); transform-origin: top left;
+  font: 500 1.2rem/1.05 Caveat, "Segoe Print", "Bradley Hand", cursive;
+  transition: opacity 200ms ease;
+}
+.map-hint[hidden] { display: none; }
+.map-hint span { display: block; }
+.map-hint svg { display: block; margin: 2px 0 0 14px; }
+.plot-wrap.open .map-hint, .plot-wrap.no-map .map-hint { opacity: 0; }
+
 .colorbar { margin-top: 8px; }
 .key-title { margin: 0 0 6px; font-size: 0.85rem; font-weight: 700; letter-spacing: -0.01em; }
 .key-title span { font-weight: 500; color: var(--muted); }

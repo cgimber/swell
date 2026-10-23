@@ -39,7 +39,9 @@ try {
   if (typeof L === 'undefined') throw new Error('Leaflet did not load');
   stationMap = createStationMap(canvas.parentElement, {
     stations: STATIONS, selected: state.station, onSelect: selectStation,
+    onOpen: () => { store.set('mapHintSeen', '1'); $('map-hint').hidden = true; },
   });
+  $('map-hint').hidden = store.get('mapHintSeen') === '1';
 } catch (err) {
   console.error('Station map unavailable:', err);
   canvas.parentElement.classList.add('no-map');
