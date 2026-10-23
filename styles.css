@@ -7,6 +7,7 @@
   --accent: #d6336c;
   --warn-bg: #fff4d6;
   --warn-fg: #7a4b00;
+  --err-bg: #fdecea;
   --err-fg: #b42318;
   --plot-bg: #ffffff;
   --plot-fg: #2b3038;
@@ -22,6 +23,7 @@
     --accent: #ff5c8a;
     --warn-bg: #3a2c08;
     --warn-fg: #ffd77a;
+    --err-bg: #3a1614;
     --err-fg: #ff8a80;
     --plot-bg: #0b0d10;
     --plot-fg: #d5dae1;
@@ -44,6 +46,27 @@ main {
 a { color: inherit; }
 
 .summary { margin: 12px 0 10px; }
+/* Loading / error banner. It sits above the plot, never over it, so the
+   station map stays tappable whatever state the data is in. */
+.notice {
+  display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px;
+  border-radius: 12px; font-size: 0.9rem; line-height: 1.35;
+}
+.notice[hidden] { display: none; }
+.station-fallback { display: block; margin-top: 10px; }
+.station-fallback[hidden] { display: none; }
+.station-fallback select {
+  width: 100%; min-height: 48px; padding: 0 12px; border-radius: 12px; font: inherit; font-weight: 600;
+  border: 1px solid var(--border); background: var(--card); color: var(--fg);
+}
+.plot-wrap.no-map .station-map, .plot-wrap.no-map .map-inset-btn, .plot-wrap.no-map .map-close { display: none; }
+.notice p { margin: 0; flex: 1; }
+.notice.loading { color: var(--muted); justify-content: center; text-align: center; }
+.notice.error { background: var(--err-bg); color: var(--err-fg); }
+.notice button {
+  flex: none; min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; cursor: pointer;
+  font: inherit; font-weight: 600; background: var(--err-fg); color: var(--err-bg);
+}
 .summary h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin: 0; text-align: center; }
 .times { margin: 0; text-align: center; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .stale {
@@ -64,12 +87,6 @@ a { color: inherit; }
 
 .plot-wrap { position: relative; margin-top: 12px; }
 #plot { display: block; width: 100%; aspect-ratio: 1; }
-.status {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  text-align: center; padding: 24px; font-weight: 600; pointer-events: none;
-}
-.status:empty { display: none; }
-.status { z-index: 3; }
 
 /* Station map: always the plot's full size, clipped to the empty centre until
    opened. Clipping (not resizing) keeps Leaflet's centre fixed while animating. */
@@ -114,8 +131,6 @@ a { color: inherit; }
 }
 .station-map .stn-label::before { display: none; }
 .plot-wrap:not(.open) .station-map .stn-label { display: none; }
-.status.error { color: var(--err-fg); pointer-events: auto; }
-.status.loading { color: var(--muted); }
 
 .colorbar { margin-top: 8px; }
 .key-title { margin: 0 0 6px; font-size: 0.85rem; font-weight: 700; letter-spacing: -0.01em; }

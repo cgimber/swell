@@ -25,16 +25,30 @@ const state = {
 function pick(v, allowed, dflt) { return allowed.includes(v) ? v : dflt; }
 
 // ── controls ───────────────────────────────────────────────────────────────
-const stationMap = createStationMap(canvas.parentElement, {
-  stations: STATIONS,
-  selected: state.station,
-  onSelect(id) {
-    state.station = id;
-    store.set('station', id);
-    stationMap.setSelected(id);
-    load();
-  },
-});
+function selectStation(id) {
+  state.station = id;
+  stationMap?.setSelected(id);
+  $('station-select').value = id;
+  load();
+}
+
+// The map picker needs Leaflet from a CDN. If that didn't load, fall back to a
+// plain dropdown rather than leaving the page without any way to switch.
+let stationMap = null;
+try {
+  if (typeof L === 'undefined') throw new Error('Leaflet did not load');
+  stationMap = createStationMap(canvas.parentElement, {
+    stations: STATIONS, selected: state.station, onSelect: selectStation,
+  });
+} catch (err) {
+  console.error('Station map unavailable:', err);
+  canvas.parentElement.classList.add('no-map');
+  $('station-fallback').hidden = false;
+}
+const select = $('station-select');
+for (const s of STATIONS) select.add(new Option(stationTitle(s.name, s.id), s.id));
+select.value = state.station;
+select.addEventListener('change', () => selectStation(select.value));
 
 
 for (const [r, g, b] of LEVEL_COLORS) {
@@ -45,10 +59,23 @@ for (const [r, g, b] of LEVEL_COLORS) {
 $('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
 
 // ── loading ────────────────────────────────────────────────────────────────
+// kind: '' (hidden) | 'loading' | 'error' (shows a Try again button)
 function setStatus(text, kind = '') {
   const el = $('status');
-  el.textContent = text;
-  el.className = `status ${kind}`;
+  el.hidden = !kind;
+  el.className = `notice ${kind}`;
+  $('status-text').textContent = text;
+  $('retry').hidden = kind !== 'error';
+}
+$('retry').addEventListener('click', () => load());
+
+function errorText(err, stationId) {
+  const name = STATIONS.find((s) => s.id === stationId)?.name ?? stationId;
+  const what = err?.status === 404
+    ? `CDIP has no data for ${name} right now. The buoy may be offline, or CDIP may be updating its files.`
+    : `Couldn't load ${name}: ${err?.name === 'DataError' ? err.message : 'something went wrong reading the data'}.`;
+  const pick = stationMap ? 'tap the map to pick another station' : 'choose another station above';
+  return `${what} Try again, or ${pick}.`;
 }
 
 async function load() {
@@ -62,17 +89,21 @@ async function load() {
   try {
     const rec = await loadStation(state.station);
     if (seq !== state.loadSeq) return;
-    state.rec = rec;
     const { rec: binned, spec } = cdipSpectrum(rec, { evenBandHz: EVEN_BAND_HZ, dirBinDeg: DIR_BIN_DEG });
-    state.field = prepareField(spec, binned.frequency);
-    if (!state.field) throw new Error('No usable spectral bands in the latest record');
+    const field = prepareField(spec, binned.frequency);
+    if (!field) throw new Error('No usable spectral bands in the latest record');
+    state.rec = rec;
+    state.field = field;
+    // remember the station only once it has loaded, so a failing one isn't
+    // reopened on every visit
+    store.set('station', rec.station);
     setStatus('');
     updateSummary();
     draw();
   } catch (err) {
     if (seq !== state.loadSeq) return;
     console.error(err);
-    setStatus(`Couldn't load data: ${err.message}`, 'error');
+    setStatus(errorText(err, state.station), 'error');
   }
 }
 
@@ -130,7 +161,7 @@ function draw() {
   const meta = STATIONS.find((s) => s.id === state.station);
   const gap = meta && 'gap' in meta ? meta.gap : DEFAULT_GAP;
   const { step, fLo, fHi, R, r0 } = renderPolar(canvas, { field: state.field, range: RANGE, dp: r?.dp, gap });
-  stationMap.layout({ R, r0 });
+  stationMap?.layout({ R, r0 });
   const hidden = gapEnergyFraction(state.field, gap, fLo, fHi);
   const note = $('gap-note');
   note.hidden = !(hidden > GAP_WARN_FRACTION);
