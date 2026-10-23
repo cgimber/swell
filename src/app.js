@@ -15,20 +15,30 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
-const params = new URLSearchParams(location.search);
+// ?station= takes CDIP's station number (201), or a full id (201p1) as older links did
+const fromParam = (v) => STATIONS.find((s) => v && (s.id === v || stationNumber(s.id) === v))?.id;
 const state = {
-  station: pick(params.get('station') || store.get('station'), STATIONS.map((s) => s.id), DEFAULT_STATION),
+  station: fromParam(new URLSearchParams(location.search).get('station'))
+    ?? pick(store.get('station'), STATIONS.map((s) => s.id), DEFAULT_STATION),
   rec: null,
   field: null,
   loadSeq: 0,
 };
 function pick(v, allowed, dflt) { return allowed.includes(v) ? v : dflt; }
 
+// keep the address bar on the current station, so copying it shares that station
+function syncUrl() {
+  const url = new URL(location.href);
+  url.searchParams.set('station', stationNumber(state.station));
+  history.replaceState(null, '', url);
+}
+
 // ── controls ───────────────────────────────────────────────────────────────
 function selectStation(id) {
   state.station = id;
   stationMap?.setSelected(id);
   $('station-select').value = id;
+  syncUrl();
   load();
 }
 
@@ -61,7 +71,8 @@ for (const [r, g, b] of LEVEL_COLORS) {
 $('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
 
 // ── loading ────────────────────────────────────────────────────────────────
-// kind: '' (hidden) | 'loading' | 'error' (shows a Try again button)
+// kind: '' (hidden) | 'error' (shows a Try again button). While loading, the
+// header is left blank (at its full height) and its values wipe in on arrival.
 function setStatus(text, kind = '') {
   const el = $('status');
   el.hidden = !kind;
@@ -87,13 +98,14 @@ async function load() {
     clearSummary();
     draw();
   }
-  setStatus(state.rec ? '' : 'Loading latest spectrum…', 'loading');
+  setStatus('');
   try {
     const rec = await loadStation(state.station);
     if (seq !== state.loadSeq) return;
     const { rec: binned, spec } = cdipSpectrum(rec, { evenBandHz: EVEN_BAND_HZ, dirBinDeg: DIR_BIN_DEG });
     const field = prepareField(spec, binned.frequency);
     if (!field) throw new Error('No usable spectral bands in the latest record');
+    const fresh = state.rec?.time !== rec.time || state.rec?.station !== rec.station;
     state.rec = rec;
     state.field = field;
     // remember the station only once it has loaded, so a failing one isn't
@@ -101,6 +113,7 @@ async function load() {
     store.set('station', rec.station);
     setStatus('');
     updateSummary();
+    if (fresh) wipe('times', 'hs', 'tp', 'dp');
     draw();
   } catch (err) {
     if (seq !== state.loadSeq) return;
@@ -122,8 +135,27 @@ function clearSummary() {
   $('station-name').textContent = stationTitle(meta.name, state.station);
   $('times').textContent = '';
   $('stale').hidden = true;
-  for (const id of ['hs', 'tp', 'dp']) $(id).textContent = '—';
+  for (const id of ['hs', 'tp', 'dp']) $(id).innerHTML = BLANK;
+  wipe('station-name');
 }
+
+// (re)start the header's wipe-in animation on these elements
+function wipe(...ids) {
+  for (const id of ids) {
+    const el = $(id);
+    el.classList.remove('wipe');
+    void el.offsetWidth; // restart even if it's mid-wipe
+    el.classList.add('wipe');
+  }
+}
+document.addEventListener('animationend', (e) => {
+  if (e.animationName === 'wipe') e.target.classList.remove('wipe');
+});
+
+// stats keep both lines when empty so the cards don't change height:
+// blank while loading, a dash when the buoy didn't report that value
+const BLANK = '&nbsp;<small>&nbsp;</small>';
+const NO_VALUE = '—<small>&nbsp;</small>';
 
 function updateSummary() {
   const r = state.rec;
@@ -136,13 +168,14 @@ function updateSummary() {
   $('stale').hidden = ageH <= STALE_AFTER_HOURS;
   $('stale').textContent = `⚠ Data is ${ageText(t)} — the buoy may not be reporting.`;
   $('hs').innerHTML = Number.isFinite(r.hs)
-    ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span><small>${r.hs.toFixed(2)} m</small>` : '—';
-  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span><small>${(1 / r.tp).toFixed(3)} Hz</small>` : '—';
-  $('dp').innerHTML = Number.isFinite(r.dp) ? `${Math.round(r.dp)}°<small>${compass(r.dp)}</small>` : '—';
+    ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span><small>${r.hs.toFixed(2)} m</small>` : NO_VALUE;
+  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span><small>${(1 / r.tp).toFixed(3)} Hz</small>` : NO_VALUE;
+  $('dp').innerHTML = Number.isFinite(r.dp) ? `${Math.round(r.dp)}°<small>${compass(r.dp)}</small>` : NO_VALUE;
 }
 
 // "Torrey Pines Outer (100)": CDIP's station number, without the deployment suffix
-function stationTitle(name, id) { return `${name} (${id.replace(/p\d+$/, '')})`; }
+function stationTitle(name, id) { return `${name} (${stationNumber(id)})`; }
+function stationNumber(id) { return id.replace(/p\d+$/, ''); }
 
 function ageText(t) {
   const min = Math.max(0, Math.round((Date.now() - t) / 60000));
@@ -193,5 +226,6 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state.rec && Date.now() - new Date(state.rec.time) > 35 * 60_000) load();
 });
 
+syncUrl();
 clearSummary();
 load();

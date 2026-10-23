@@ -61,14 +61,13 @@ a { color: inherit; }
 }
 .plot-wrap.no-map .station-map, .plot-wrap.no-map .map-inset-btn, .plot-wrap.no-map .map-close { display: none; }
 .notice p { margin: 0; flex: 1; }
-.notice.loading { color: var(--muted); justify-content: center; text-align: center; }
 .notice.error { background: var(--err-bg); color: var(--err-fg); }
 .notice button {
   flex: none; min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; cursor: pointer;
   font: inherit; font-weight: 600; background: var(--err-fg); color: var(--err-bg);
 }
-.summary h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin: 0; text-align: center; }
-.times { margin: 0; text-align: center; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.summary h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin: 0 auto; width: fit-content; text-align: center; }
+.times { margin: 0 auto; width: fit-content; line-height: 1.4; min-height: 1.4em; text-align: center; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .stale {
   margin-top: 8px; padding: 8px 12px; border-radius: 10px;
   background: var(--warn-bg); color: var(--warn-fg); font-size: 0.9rem; font-weight: 600;
@@ -83,6 +82,20 @@ a { color: inherit; }
 }
 .stats dd .unit { font-size: 0.55em; font-weight: 500; margin-left: 0.15em; letter-spacing: 0; }
 .stats dd small { display: block; margin-top: 4px; font-weight: 500; color: var(--muted); font-size: 0.8rem; }
+/* Soft-edged left-to-right wipe when header data changes. The title and age
+   shrink to their text so the sweep tracks the words, not the page width. */
+.wipe {
+  mask-image: linear-gradient(90deg, #000 45%, transparent 55%);
+  mask-size: 250% 100%; mask-repeat: no-repeat;
+  animation: wipe 450ms ease-out both;
+}
+/* staggered top to bottom: title, age, then the cards left to right */
+.times.wipe { animation-delay: 80ms; }
+.stats div:nth-child(1) .wipe { animation-delay: 160ms; }
+.stats div:nth-child(2) .wipe { animation-delay: 220ms; }
+.stats div:nth-child(3) .wipe { animation-delay: 280ms; }
+@keyframes wipe { from { mask-position: 100% 0; } to { mask-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .wipe { animation: none; mask-image: none; } }
 
 
 .plot-wrap { position: relative; margin-top: 12px; }
@@ -99,15 +112,20 @@ a { color: inherit; }
   transition: clip-path 350ms ease;
 }
 .plot-wrap.open .station-map { clip-path: circle(50% at 50% 50%); }
-#plot { transition: opacity 350ms ease; }
-.plot-wrap.open #plot { opacity: 0.15; }
+/* Modal-style backdrop behind the open map; clicking it closes the map.
+   Same z-index as the map but earlier in the DOM, so it sits just beneath. */
+.map-backdrop {
+  position: fixed; inset: 0; z-index: 1;
+  background: var(--bg); opacity: 0; pointer-events: none;
+  transition: opacity 350ms ease;
+}
+.plot-wrap.open .map-backdrop { opacity: 0.85; pointer-events: auto; }
 .map-inset-btn {
   position: absolute; z-index: 2; padding: 0; border: 0; cursor: pointer;
   left: calc(50% - var(--inset-r, 0px)); top: calc(50% - var(--inset-r, 0px));
   width: calc(2 * var(--inset-r, 0px)); height: calc(2 * var(--inset-r, 0px));
   border-radius: 50%; background: transparent;
 }
-.map-inset-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .plot-wrap.open .map-inset-btn { display: none; }
 .map-close {
   position: absolute; z-index: 2; top: 0; right: 0;
@@ -123,8 +141,43 @@ a { color: inherit; }
   background: #f5f500; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.5);
 }
 .plot-wrap.open .station-map .stn span { width: 14px; height: 14px; }
-.plot-wrap.open .station-map .stn.selected span { width: 16px; height: 16px; box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px rgba(0, 0, 0, 0.5); }
+.plot-wrap.open .station-map .stn.selected span {
+  position: relative; width: 16px; height: 16px;
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 2.25px rgba(0, 0, 0, 0.5);
+}
 .plot-wrap:not(.open) .station-map .stn:not(.selected) { display: none; }
+.station-map .stn span { transition: transform 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .plot-wrap.open .station-map .stn:hover span { transform: scale(1.3); }
+}
+/* Red flag planted on the selected pin, so it reads apart from a hovered one.
+   It hangs off the dot so the hover scale carries it too. Each time the map
+   opens, the pole grows once the map has expanded, then the pennant unfurls. */
+.plot-wrap.open .station-map .stn.selected span::before,
+.plot-wrap.open .station-map .stn.selected span::after {
+  content: ''; position: absolute; pointer-events: none;
+  /* hard 1.5px shadow on the right, matching the dot's ring width */
+  filter: drop-shadow(1.5px 0 0 #000);
+}
+.plot-wrap.open .station-map .stn.selected span::before { /* pole */
+  left: 7px; bottom: 100%; width: 2px; height: 16px; background: #fff;
+  transform-origin: bottom;
+  animation: flag-pole 250ms ease-out 300ms backwards;
+}
+.plot-wrap.open .station-map .stn.selected span::after { /* pennant */
+  left: 9px; bottom: calc(100% + 6px); width: 0; height: 0;
+  border-style: solid; border-width: 5px 0 5px 12px;
+  border-color: transparent transparent transparent #e03131;
+  transform-origin: left;
+  animation: flag-unfurl 200ms ease-out 550ms backwards;
+}
+@keyframes flag-pole { from { transform: scaleY(0); } }
+@keyframes flag-unfurl { from { transform: scaleX(0); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .plot-wrap.open .station-map .stn.selected span::before,
+  .plot-wrap.open .station-map .stn.selected span::after { animation: none; }
+}
+.station-map .stn-label.leaflet-tooltip-top.selected { margin-top: -26px; }
 .station-map .stn-label {
   background: rgba(15, 18, 22, 0.8); color: #e8ebef; border: 0; box-shadow: none;
   font: 600 12px/1.2 Inter, system-ui, sans-serif; padding: 3px 6px;
@@ -157,9 +210,14 @@ a { color: inherit; }
 }
 .key-labels span { position: absolute; top: 0; transform: translateX(-50%); }
 .key-labels span:first-child { transform: none; }
+/* too narrow for all ten: label every other band edge */
+@media (max-width: 520px) { .key-labels span:nth-child(even) { display: none; } }
 .gap-note { margin: 6px 0 0; font-size: 0.8rem; color: var(--warn-fg); background: var(--warn-bg); padding: 6px 10px; border-radius: 8px; }
-.units { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
-footer { margin-top: 20px; font-size: 0.75rem; color: var(--muted); }
+/* Units note and credits: stacked on phones, side by side from 521px. */
+.notes { display: grid; gap: 20px 24px; margin-top: 16px; align-items: start; }
+@media (min-width: 521px) { .notes { grid-template-columns: 1fr 1fr; } }
+.units { margin: 0; font-size: 0.8rem; color: var(--muted); }
+footer { font-size: 0.75rem; color: var(--muted); }
 
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
