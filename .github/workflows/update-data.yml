@@ -1,11 +1,11 @@
-# Fallback for DATA_SOURCE = "static" (src/config.js). Not needed while the
-# browser can query THREDDS directly. To enable: uncomment `schedule`, and set
-# DATA_SOURCE = 'static'.
+# Writes data/*.json, which the page reads when DATA_SOURCE (src/config.js) is
+# "static", or in "auto" mode when the browser can't reach THREDDS (CDIP
+# blocks some regions, e.g. Japan).
 name: update-data
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '7,37 * * * *'   # every 30 min, offset from the top of the hour
+  schedule:
+    - cron: '7,37 * * * *'   # every 30 min, offset from the top of the hour
 permissions:
   contents: write
 concurrency:
@@ -27,4 +27,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           git commit -m "data: update buoy records"
+          git pull --rebase origin "${GITHUB_REF_NAME}"   # main may have moved during the run
           git push

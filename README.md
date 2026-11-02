@@ -36,6 +36,9 @@ the station map.
   open a map of all stations; tap a station to switch to it (× closes the map).
   Imagery is Esri World Imagery, via Leaflet. If Leaflet fails to load, a plain
   station dropdown appears instead.
+- If THREDDS can't be reached (CDIP blocks some regions, Japan among them), the
+  page falls back to a copy of the data on this site, refreshed every 30 min.
+  See [Data source config](#data-source-config).
 - If a station's data can't be loaded, a banner above the plot explains why and
   offers **Try again**. The station picker stays usable, so you can switch
   station. Each request times out after 20 s. A 404 or server error is retried
@@ -47,7 +50,8 @@ the station map.
 
 ```
 index.html ─ src/app.js ─┬─ src/dataSource.js ─┬─ "direct": src/opendap.js → CDIP THREDDS
-                         │                      └─ "static": data/<station>.json
+                         │   ("auto": direct,   └─ "static": data/<station>.json
+                         │    then static)
                          ├─ src/mem.js      rebin → Maximum Entropy Method → S(f,θ)
                          └─ src/plot.js     canvas polar plot (+ src/colormap.js)
 ```
@@ -135,27 +139,47 @@ Everything goes through `src/dataSource.js`. You switch modes with one line in
 `src/config.js`:
 
 ```js
-export const DATA_SOURCE = 'direct'; // or 'static'
+export const DATA_SOURCE = 'auto'; // or 'direct' or 'static'
 ```
 
-- **`direct`** (current default): the browser queries CDIP THREDDS itself.
-  This works because THREDDS sends `Access-Control-Allow-Origin: *` on OPeNDAP
-  responses and answers CORS preflights. I checked this on 2026-10-15.
-- **`static`**: the browser reads `data/<station>.json` from the same site. Use
-  this if CDIP ever drops CORS, or to take the per-visit load off THREDDS.
+- **`direct`**: the browser queries CDIP THREDDS itself. This works because
+  THREDDS sends `Access-Control-Allow-Origin: *` on OPeNDAP responses and
+  answers CORS preflights. I checked this on 2026-10-15.
+- **`static`**: the browser reads `data/<station>.json` from the same site.
   `scripts/fetch-data.mjs` writes those files (`npm run fetch-data`). It
   rewrites a file only when the record changed, and logs the
   `atan2(b1,a1)` vs `Dp` check for each station.
+- **`auto`** (current default): `direct` first, then `static` if THREDDS
+  fails. If both fail, the page shows THREDDS's error.
 
-To turn static mode on with automatic updates:
+**Why `auto`.** CDIP's AWS load balancer answers **403 Forbidden** to whole
+regions. On 2026-11-02 every Japanese network tested was blocked, home and
+mobile alike (SoftBank, NTT Docomo, TOKAI, Asahi Net), as were the UK,
+Germany, India, Singapore and Brazil. The US, Canada, Mexico, Australia, Korea
+and Taiwan got through. The 403 has no CORS header, so the browser reports a
+network error. Before this change, those users saw "Couldn't reach CDIP's data
+server" for every station. CDIP's own site (`cdip.ucsd.edu`) is blocked there
+too, so the **View source** links won't open for them either. To check a
+region yourself, use a [Globalping](https://globalping.io) HTTP probe. For
+example, location `JP+eyeball-network` and path
+`/thredds/dodsC/cdip/realtime/100p1_rt.nc.dds`.
 
-1. In `.github/workflows/update-data.yml`, uncomment the `schedule:` block
-   (every 30 min). The workflow commits `data/*.json` only when something
-   changed.
-2. Set `DATA_SOURCE = 'static'` and commit.
-3. Run the workflow once by hand: **Actions → update-data → Run workflow**.
-4. Check that **Settings → Actions → General → Workflow permissions** allows
+When THREDDS fails with no HTTP status, as it does for a blocked region,
+`auto` reads the cache first for the rest of the visit, so switching station
+doesn't wait on a failing request. The footer says which source the current
+station came from. The cache is at most about 30 min behind the buoy. The usual
+2 h staleness warning applies to it too.
+
+The `update-data` workflow (`.github/workflows/update-data.yml`) refreshes the
+cache every 30 min and commits `data/*.json` only when something changed.
+Its pushes use `GITHUB_TOKEN`, so they don't start the `test` workflow. To set
+it up:
+
+1. Check that **Settings → Actions → General → Workflow permissions** allows
    read and write, so the job can push.
+2. Run the workflow once by hand: **Actions → update-data → Run workflow**.
+   The schedule takes over from there. GitHub may delay scheduled runs by a
+   few minutes.
 
 ## Deploying to GitHub Pages
 
@@ -179,7 +203,7 @@ The `test` workflow runs `npm test` on every push and PR.
    `src/config.js`, with the position from `metaDeployLatitude` and
    `metaDeployLongitude`. Add `label: 'left' | 'top' | 'bottom'` if its name
    overlaps another on the station map.
-3. In static mode, the workflow picks it up on its next run because it reads
+3. The `update-data` workflow picks it up on its next run because it reads
    the same list.
 
 Current stations: 100p1 Torrey Pines Outer (default), 153p1 Del Mar
@@ -223,7 +247,7 @@ Each card shows:
   last few hours went, e.g. "↘ Dropping", and the sparkline shows the buoy
   record only.
 
-In static mode, `scripts/fetch-data.mjs` also writes
+`scripts/fetch-data.mjs` also writes
 `data/<station>.forecast.json`, and the page trims it to the window.
 
 ## Tuning

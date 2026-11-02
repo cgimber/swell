@@ -70,7 +70,12 @@ for (const [r, g, b] of LEVEL_COLORS) {
   cell.style.background = `rgb(${r},${g},${b})`;
   $('key').append(cell);
 }
-$('source-mode').textContent = `Source: ${DATA_SOURCE === 'direct' ? 'CDIP THREDDS (live)' : 'cached JSON'}.`;
+function showSource(source) {
+  $('source-mode').textContent = source === 'static'
+    ? 'Source: a copy of CDIP THREDDS data, refreshed every 30 min (THREDDS was unreachable from here).'
+    : 'Source: CDIP THREDDS (live).';
+}
+showSource(DATA_SOURCE === 'static' ? 'static' : 'direct');
 
 // ── loading ────────────────────────────────────────────────────────────────
 // kind: '' (hidden) | 'error' (shows a Try again button). While loading, the
@@ -114,6 +119,7 @@ async function load() {
     // remember the station only once it has loaded, so a failing one isn't
     // reopened on every visit
     store.set('station', rec.station);
+    showSource(rec.source);
     setStatus('');
     updateSummary();
     if (fresh) wipe('times', 'hs', 'tp');
@@ -189,7 +195,9 @@ function updateSummary() {
   $('times').title = `${fmtLocal.format(t)} · ${fmtUtc.format(t)} UTC`; // full sample time on hover
   const ageH = (Date.now() - t) / 3.6e6;
   $('stale').hidden = ageH <= STALE_AFTER_HOURS;
-  $('stale').textContent = `⚠ Data is ${ageText(t)} — the buoy may not be reporting.`;
+  $('stale').textContent = `⚠ Data is ${ageText(t)} — ${r.source === 'static'
+    ? 'the buoy may not be reporting, or the cached copy is behind.'
+    : 'the buoy may not be reporting.'}`;
   $('hs').innerHTML = Number.isFinite(r.hs)
     ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span>` : NO_VALUE;
   $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span>` : NO_VALUE;
