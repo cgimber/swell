@@ -3,7 +3,9 @@
 //           Works because THREDDS sends `Access-Control-Allow-Origin: *`.
 // "static": the browser reads data/<station>.json from this site, written by
 //           scripts/fetch-data.mjs (see .github/workflows/update-data.yml).
-export const DATA_SOURCE = 'direct';
+// "auto":   direct first, then the static copy if that fails. CDIP blocks
+//           some regions (Japan, for one) with a 403 that has no CORS header.
+export const DATA_SOURCE = 'auto';
 
 // ── Stations ───────────────────────────────────────────────────────────────
 // `id` is the CDIP platform id used in the THREDDS file name (<id>_rt.nc).
