@@ -2,11 +2,12 @@ import {
   STATIONS, DEFAULT_STATION, RANGE, STALE_AFTER_HOURS, DATA_SOURCE,
   EVEN_BAND_HZ, DIR_BIN_DEG, DEFAULT_GAP, GAP_WARN_FRACTION,
 } from './config.js';
-import { loadStation } from './dataSource.js';
+import { loadStation, loadForecast } from './dataSource.js';
 import { cdipSpectrum } from './mem.js';
 import { prepareField, renderPolar, gapEnergyFraction } from './plot.js';
 import { LEVEL_COLORS, formatEdge } from './colormap.js';
 import { createStationMap } from './stationMap.js';
+import { trendAt, turningPoints, nextChange, sparkGeometry, smooth, valueAt } from './trend.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('plot');
@@ -22,6 +23,7 @@ const state = {
     ?? pick(store.get('station'), STATIONS.map((s) => s.id), DEFAULT_STATION),
   rec: null,
   field: null,
+  fc: null,
   loadSeq: 0,
 };
 function pick(v, allowed, dflt) { return allowed.includes(v) ? v : dflt; }
@@ -94,11 +96,12 @@ function errorText(err, stationId) {
 async function load() {
   const seq = ++state.loadSeq;
   if (!state.rec || state.rec.station !== state.station) {
-    state.rec = null; state.field = null;
+    state.rec = null; state.field = null; state.fc = null;
     clearSummary();
     draw();
   }
   setStatus('');
+  loadTrend(seq, state.station); // in parallel; never holds up the plot
   try {
     const rec = await loadStation(state.station);
     if (seq !== state.loadSeq) return;
@@ -113,13 +116,27 @@ async function load() {
     store.set('station', rec.station);
     setStatus('');
     updateSummary();
-    if (fresh) wipe('times', 'hs', 'tp', 'dp');
+    if (fresh) wipe('times', 'hs', 'tp');
     draw();
   } catch (err) {
     if (seq !== state.loadSeq) return;
     console.error(err);
     setStatus(errorText(err, state.station), 'error');
   }
+}
+
+// The forecast only feeds the trend, so a failure just leaves it out (the
+// trend falls back to the observed record).
+async function loadTrend(seq, station) {
+  let fc = null;
+  try {
+    fc = await loadForecast(station);
+  } catch (err) {
+    console.warn('Forecast unavailable:', err);
+  }
+  if (seq !== state.loadSeq) return;
+  state.fc = fc;
+  renderTrend();
 }
 
 // ── summary header ─────────────────────────────────────────────────────────
@@ -135,7 +152,13 @@ function clearSummary() {
   $('station-name').textContent = stationTitle(meta.name, state.station);
   $('times').textContent = '';
   $('stale').hidden = true;
-  for (const id of ['hs', 'tp', 'dp']) $(id).innerHTML = BLANK;
+  for (const id of ['hs', 'tp']) $(id).innerHTML = BLANK;
+  for (const [key, param] of [['hs', 'waveHs'], ['tp', 'waveTp']]) {
+    const a = $(`${key}-link`);
+    a.href = `https://cdip.ucsd.edu/m/products/?stn=${state.station}&param=${param}`;
+    a.title = `${key === 'hs' ? 'Wave height' : 'Peak period'} chart and forecast on CDIP`;
+  }
+  renderTrend();
   wipe('station-name');
 }
 
@@ -152,10 +175,10 @@ document.addEventListener('animationend', (e) => {
   if (e.animationName === 'wipe') e.target.classList.remove('wipe');
 });
 
-// stats keep both lines when empty so the cards don't change height:
+// stats keep their line when empty so the cards don't change height:
 // blank while loading, a dash when the buoy didn't report that value
-const BLANK = '&nbsp;<small>&nbsp;</small>';
-const NO_VALUE = '—<small>&nbsp;</small>';
+const BLANK = '&nbsp;';
+const NO_VALUE = '—';
 
 function updateSummary() {
   const r = state.rec;
@@ -168,9 +191,103 @@ function updateSummary() {
   $('stale').hidden = ageH <= STALE_AFTER_HOURS;
   $('stale').textContent = `⚠ Data is ${ageText(t)} — the buoy may not be reporting.`;
   $('hs').innerHTML = Number.isFinite(r.hs)
-    ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span><small>${r.hs.toFixed(2)} m</small>` : NO_VALUE;
-  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span><small>${(1 / r.tp).toFixed(3)} Hz</small>` : NO_VALUE;
-  $('dp').innerHTML = Number.isFinite(r.dp) ? `${Math.round(r.dp)}°<small>${compass(r.dp)}</small>` : NO_VALUE;
+    ? `${(r.hs * 3.28084).toFixed(1)}<span class="unit">ft</span>` : NO_VALUE;
+  $('tp').innerHTML = Number.isFinite(r.tp) ? `${r.tp.toFixed(1)}<span class="unit">s</span>` : NO_VALUE;
+  renderTrend();
+}
+
+// ── trend ──────────────────────────────────────────────────────────────────
+// Under the height and period values: a sparkline of the last 24 h (buoy) and
+// next 3 days (forecast), and a line or two saying what the forecast does next,
+// each dotted on the sparkline (see README → Trend).
+const GLYPH = { up: '↗', down: '↘', steady: '→' };
+const WORD = { hs: { up: 'Building', down: 'Dropping', steady: 'Steady' }, tp: { up: 'Lengthening', down: 'Shortening', steady: 'Steady' } };
+const FMT = { hs: (m) => `${(m * 3.28084).toFixed(1)} ft`, tp: (s) => `${s.toFixed(1)} s` };
+const fmtDay = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+// compact local time for a narrow card: "Tue 2p"
+function when(t) {
+  const d = new Date(t), h = d.getHours();
+  return `${fmtDay.format(d)} ${h % 12 || 12}${h < 12 ? 'a' : 'p'}`;
+}
+
+// Peak period jumps to 5–7 s whenever local wind sea briefly holds the most
+// energy. The trend follows swell, so it drops those, using the same 8 s floor
+// as the plot.
+const swellOnly = (series) => series.filter((p) => !(p.tp < RANGE.minPeriod));
+
+// The next one or two things the forecast says will happen, as short lines:
+// [{ text, t, dir }] (t and dir are missing for "steady" and level lines).
+// Hs: turning points ("↘ 3.9 ft Tue 8p", then "↗ 5.3 ft Wed 2p").
+// Tp: the model's groundswell period now, then its first full step away from
+// that ("Groundswell 18.2 s", "↘ 16.7 s Mon 6a"), since model periods jump
+// between bins. Naming it groundswell explains why it can differ from the
+// buoy's Tp on the card, which wind sea can take over.
+const STEADY = { text: '→ Steady 3 days' };
+function outlookItems(key, fc, now) {
+  if (!fc) return [];
+  if (key === 'tp') {
+    const c = nextChange(fc, now, 'tp');
+    const level = valueAt(smooth(fc, 'tp', 5), now);
+    return [
+      ...(Number.isFinite(level) ? [{ text: `Groundswell ${FMT.tp(level)}` }] : []),
+      c ? { text: `${GLYPH[c.dir]} ${FMT.tp(c.value)} ${when(c.t)}`, t: c.t, dir: c.dir } : STEADY,
+    ];
+  }
+  return turningPoints(fc, now, 'hs').slice(0, 2).map((p) => {
+    if (p.kind === 'steady') return STEADY;
+    const dir = p.kind === 'peak' || p.kind === 'rising' ? 'up' : 'down';
+    const by = p.kind === 'rising' || p.kind === 'falling' ? 'by ' : '';
+    return { text: `${GLYPH[dir]} ${FMT.hs(p.value)} ${by}${when(p.t)}`, t: p.t, dir };
+  });
+}
+
+// `marks`: outlook items to dot on the forecast line (filled = up, hollow = down).
+// Under the chart, each day's abbreviation sits centred in its stretch between
+// the midnight ticks; partial days at either end too narrow for it are left blank.
+const DAY_AXIS = 18, DAY_LABEL_MIN_W = 24;
+function sparkSvg(key, obs, fc, now, w, marks) {
+  const h = 28;
+  const g = sparkGeometry(obs, fc, now, { w, h, key, marks });
+  if (!g) return null;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h + DAY_AXIS}`);
+  svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = [
+    ...g.days.map((x) => `<line class="day" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${h}"/>`),
+    `<line class="now" x1="${g.nowX.toFixed(1)}" x2="${g.nowX.toFixed(1)}" y1="0" y2="${h}"/>`,
+    `<path class="obs" d="${g.obs}"/>`,
+    fc ? `<path class="fc" d="${g.fc}"/>` : '',
+    ...g.marks.map((m) => `<circle class="mark ${m.dir}" cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="2.5"/>`),
+    ...g.daySpans.filter((s) => s.w >= DAY_LABEL_MIN_W).map((s) =>
+      `<text class="day-label" x="${s.x.toFixed(1)}" y="${h + DAY_AXIS - 2}">${fmtDay.format(s.t)}</text>`),
+  ].join('');
+  return svg;
+}
+
+const line = (text, cls = 'line') => Object.assign(document.createElement('span'), { className: cls, textContent: text });
+
+function renderTrend() {
+  const r = state.rec;
+  const fc = r && state.fc?.station === r.station ? state.fc.series : null;
+  const now = Date.now();
+  for (const key of ['hs', 'tp']) {
+    const el = $(`${key}-trend`), out = $(`${key}-outlook`);
+    const obs = key === 'tp' ? swellOnly(r?.history ?? []) : r?.history ?? [];
+    const kfc = key === 'tp' && fc ? swellOnly(fc) : fc;
+    const t = r && trendAt(obs, kfc, now, key);
+    if (!t) { el.replaceChildren(); out.replaceChildren(); out.removeAttribute('aria-label'); continue; }
+    const items = outlookItems(key, kfc, now);
+    const outlook = items.map((i) => i.text);
+    const marks = items.filter((i) => i.t);
+    const svg = sparkSvg(key, obs, kfc, now, Math.max(40, Math.round(el.clientWidth || 80)), marks);
+    // without a forecast, say which way the buoy's last few hours went
+    const text = outlook.length ? outlook : [`${GLYPH[t.dir]} ${WORD[key][t.dir]}`];
+    el.replaceChildren(...(svg ? [svg] : []));
+    out.replaceChildren(...text.map((s) => line(s)));
+    // one sentence for screen readers
+    const name = key === 'hs' ? 'Wave height' : 'Peak period';
+    out.setAttribute('aria-label', `${name} trend: ${WORD[key][t.dir].toLowerCase()}${t.basis === 'forecast' ? ' over the next few hours' : ' over the last few hours'}.${outlook.length ? ` Forecast: ${outlook.join(', then ').replace(/[↗↘→] /g, '')}.` : ''}`);
+  }
 }
 
 // "Torrey Pines Outer (100)": CDIP's station number, without the deployment suffix
@@ -183,11 +300,6 @@ function ageText(t) {
   const h = Math.floor(min / 60), m = min % 60;
   if (h < 48) return `${h} h ${m} min ago`;
   return `${Math.floor(h / 24)} days ago`;
-}
-
-function compass(deg) {
-  const pts = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return pts[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
 }
 
 // ── drawing ────────────────────────────────────────────────────────────────
@@ -217,7 +329,7 @@ function draw() {
 let resizeRaf = 0;
 new ResizeObserver(() => {
   cancelAnimationFrame(resizeRaf);
-  resizeRaf = requestAnimationFrame(draw);
+  resizeRaf = requestAnimationFrame(() => { draw(); renderTrend(); });
 }).observe(canvas);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
 // the canvas only picks up Inter once it has loaded
