@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAscii, parseDdsDims, fetchLatestRecord, hydrateRecord, DataError } from '../src/opendap.js';
+import { parseAscii, parseDdsDims, fetchLatestRecord, fetchForecast, hydrateRecord, DataError } from '../src/opendap.js';
 
 const fx = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 
@@ -48,6 +48,30 @@ test('fetchLatestRecord makes only constrained requests for the last record', as
   assert.equal(rec.energy.length, 64);
   assert.ok(Number.isFinite(rec.hs) && Number.isFinite(rec.dp));
   assert.match(rec.time, /^\d{4}-\d\d-\d\dT/);
+});
+
+test('fetchLatestRecord returns the good samples it read as history', async () => {
+  const fetchFn = async (url) => ({ ok: true, status: 200, text: async () => (url.includes('.dds?') ? fx('100p1.dds.txt') : fx('100p1.ascii.txt')) });
+  const rec = await fetchLatestRecord('100p1', { fetchFn, lookback: 3 });
+  assert.ok(rec.history.length >= 1 && rec.history.length <= 3);
+  for (const p of rec.history) assert.ok(Number.isFinite(p.t) && Number.isFinite(p.hs));
+  assert.equal(new Date(rec.history.at(-1).t).toISOString(), rec.time);
+});
+
+test('fetchForecast reads only the tail of the model run and trims it to the window', async () => {
+  const urls = [];
+  const fetchFn = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, text: async () => (url.includes('.dds?') ? fx('BP100_ecmwf_fc.dds.txt') : fx('BP100_ecmwf_fc.ascii.txt')) };
+  };
+  const now = Date.parse('2026-11-02T05:30:00Z');
+  const fc = await fetchForecast('100p1', { fetchFn, now });
+  assert.equal(urls.length, 2);
+  assert.ok(urls[0].endsWith('MOP_validation/BP100_ecmwf_fc.nc.dds?waveTime'));
+  assert.ok(urls[1].includes('waveTime[40197:40396],waveHs[40197:40396],waveTp[40197:40396]'));
+  assert.ok(fc.series[0].t >= now - 24 * 3.6e6);
+  assert.ok(fc.series.at(-1).t <= now + 72 * 3.6e6 && fc.series.at(-1).t > now + 71 * 3.6e6);
+  await assert.rejects(fetchForecast('100p1', { fetchFn, now: now + 30 * 24 * 3.6e6 }), DataError, 'an old run is no forecast');
 });
 
 // A fetch stub that answers with `statuses` in order (then 200s) and serves fixtures.
