@@ -112,10 +112,11 @@ const spectralVars = ['waveEnergyDensity', 'waveA1Value', 'waveB1Value', 'waveA2
 /**
  * Fetch the latest good wave record for a CDIP platform (e.g. "100p1").
  *  1. constrained DDS → length of waveTime (N) and waveFrequency (F)
- *  2. scalars for the last `lookback` records → newest one flagged good
+ *  2. scalars for the last `lookback` records → newest one flagged good, and
+ *     the good Hs/Tp samples among them as `history` (48 × 30 min = 24 h)
  *  3. spectra + moments for that single record
  */
-export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 6, ...httpOpts } = {}) {
+export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 48, ...httpOpts } = {}) {
   const base = datasetUrl(platform);
   const dims = parseDdsDims(await getText(fetchFn, `${base}.dds?waveTime,waveFrequency`, httpOpts));
   const N = dims.waveTime, F = dims.waveFrequency;
@@ -135,6 +136,12 @@ export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 
   }
   if (k < 0) throw new DataError(`No good-quality record in the last ${lookback} samples`);
   const idx = lo + k;
+  const history = [];
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] === FLAG_GOOD && Number.isFinite(s.waveHs.values[i])) {
+      history.push({ t: s.waveTime.values[i] * 1000, hs: s.waveHs.values[i], tp: s.waveTp.values[i] });
+    }
+  }
 
   const q2 = spectralVars.map((v) => `${v}[${idx}][0:${F - 1}]`).join(',');
   const sp = parseAscii(await getText(fetchFn, `${base}.ascii?${q2}`, httpOpts));
@@ -153,7 +160,44 @@ export async function fetchLatestRecord(platform, { fetchFn = fetch, lookback = 
     b1: sp.waveB1Value.values,
     a2: sp.waveA2Value.values,
     b2: sp.waveB2Value.values,
+    history,
   });
+}
+
+// CDIP's ECMWF-driven model run at each buoy (the magenta "ECMWF-driven" line
+// on CDIP's station chart). Hourly; the file keeps years of past runs, so only
+// its tail is read.
+export const MODEL_BASE = 'https://thredds.cdip.ucsd.edu/thredds/dodsC/cdip/model/MOP_validation';
+
+export function forecastUrl(platform) {
+  return `${MODEL_BASE}/BP${platform.replace(/p\d+$/, '')}_ecmwf_fc.nc`;
+}
+
+/**
+ * Fetch the modelled Hs/Tp for a platform from `pastHours` before `now` to
+ * `aheadHours` after it: { station, series: [{ t (ms), hs, tp }] }.
+ *  1. constrained DDS → length of waveTime (N)
+ *  2. waveTime/waveHs/waveTp for the last `tail` hours of the file
+ */
+export async function fetchForecast(platform, {
+  fetchFn = fetch, now = Date.now(), pastHours = 24, aheadHours = 72, tail = 200, ...httpOpts
+} = {}) {
+  const base = forecastUrl(platform);
+  const N = parseDdsDims(await getText(fetchFn, `${base}.dds?waveTime`, httpOpts)).waveTime;
+  if (!N) throw new DataError(`No forecast for ${platform}`);
+  const lo = Math.max(0, N - tail), hi = N - 1;
+  const q = ['waveTime', 'waveHs', 'waveTp'].map((v) => `${v}[${lo}:${hi}]`).join(',');
+  const d = parseAscii(await getText(fetchFn, `${base}.ascii?${q}`, httpOpts));
+  const t0 = now - pastHours * 3.6e6, t1 = now + aheadHours * 3.6e6;
+  const series = [];
+  d.waveTime.values.forEach((s, i) => {
+    const t = s * 1000;
+    if (t >= t0 && t <= t1 && Number.isFinite(d.waveHs.values[i])) {
+      series.push({ t, hs: d.waveHs.values[i], tp: d.waveTp.values[i] });
+    }
+  });
+  if (!series.length || series.at(-1).t < now) throw new DataError(`No current forecast for ${platform}`);
+  return { station: platform, series };
 }
 
 /** Normalised record shape used everywhere (and written to data/<id>.json). */
@@ -169,6 +213,7 @@ export function buildRecord(platform, r) {
     bandwidth: round(r.bandwidth),
     energy: round(r.energy),
     a1: round(r.a1), b1: round(r.b1), a2: round(r.a2), b2: round(r.b2),
+    history: r.history ?? [],
   };
 }
 
@@ -179,5 +224,6 @@ export function hydrateRecord(rec) {
     ...rec,
     frequency: arr(rec.frequency), bandwidth: arr(rec.bandwidth), energy: arr(rec.energy),
     a1: arr(rec.a1), b1: arr(rec.b1), a2: arr(rec.a2), b2: arr(rec.b2),
+    history: rec.history ?? [],
   };
 }

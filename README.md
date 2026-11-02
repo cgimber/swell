@@ -25,9 +25,13 @@ the station map.
   tabular figures for numbers.
 - The plot shows CDIP's **Swell only** view: 8–33 s, with the rim at 0.12 Hz.
 - The header shows station, the data's age (hover for the sample time),
-  wave height (Hs, ft and m), peak period (Tp) and peak direction (Dp). A pink
-  marker on the rim shows Dp. Data older than
+  wave height (Hs, in ft) and peak period (Tp). A pink marker on the plot's
+  rim shows the peak direction (Dp). Data older than
   2 hours gets a warning.
+- The height and period cards also show a **trend**: where Hs and Tp are
+  heading, from the buoy's last 24 h and CDIP's forecast for the next 3 days
+  (see [Trend](#trend)). Each card's **View source** link opens CDIP's chart
+  for that station and value.
 - The plot's empty centre shows a satellite map of the selected buoy. Tap it to
   open a map of all stations; tap a station to switch to it (× closes the map).
   Imagery is Esri World Imagery, via Leaflet. If Leaflet fails to load, a plain
@@ -52,12 +56,26 @@ index.html ─ src/app.js ─┬─ src/dataSource.js ─┬─ "direct": src/op
 three small, constrained OPeNDAP requests. It never downloads the netCDF file.
 
 1. `…/100p1_rt.nc.dds?waveTime,waveFrequency` gets the array lengths N and F.
-2. `…/100p1_rt.nc.ascii?waveTime[N-6:N-1],waveFlagPrimary[…],waveHs[…],waveTp[…],waveDp[…],waveFrequency[0:F-1],waveBandwidth[0:F-1],metaStationName`
+2. `…/100p1_rt.nc.ascii?waveTime[N-48:N-1],waveFlagPrimary[…],waveHs[…],waveTp[…],waveDp[…],waveFrequency[0:F-1],waveBandwidth[0:F-1],metaStationName`
    picks the newest record whose `waveFlagPrimary` is 1 (good).
 3. `…/100p1_rt.nc.ascii?waveEnergyDensity[i][0:F-1],waveA1Value[i][…],waveB1Value[i][…],waveA2Value[i][…],waveB2Value[i][…]`
    fetches that one record's spectrum and Fourier moments.
 
-`-999.99` fill values become `NaN`.
+`-999.99` fill values become `NaN`. Step 2 reads the last 48 records (24 h),
+and the good-flagged Hs/Tp among them become the record's `history`.
+
+The trend's forecast comes from a second file: CDIP's ECMWF-driven model run
+at the buoy, `cdip/model/MOP_validation/BP100_ecmwf_fc.nc`. This is the
+magenta "ECMWF-driven" line on CDIP's station chart. It is hourly and keeps
+years of past runs, so the page reads only the tail:
+
+1. `…/BP100_ecmwf_fc.nc.dds?waveTime` gets N.
+2. `…/BP100_ecmwf_fc.nc.ascii?waveTime[N-200:N-1],waveHs[…],waveTp[…]` gets
+   the last 200 hours. The page keeps now − 24 h to now + 72 h.
+
+This loads alongside the record and never holds up the plot. If it fails,
+the trend falls back to the buoy's own last few hours. CDIP's chart CSV
+(`/m/dygraphs_plot/…`) would be simpler, but it sends no CORS header.
 
 **MEM** (Lygre & Krogstad 1986, as CDIP uses). For each band,
 `c1 = a1 + i·b1`, `c2 = a2 + i·b2`, then
@@ -167,6 +185,46 @@ The `test` workflow runs `npm test` on every push and PR.
 Current stations: 100p1 Torrey Pines Outer (default), 153p1 Del Mar
 Nearshore, 201p1 Scripps Nearshore, 220p1 Mission Bay West and 191p1 Point
 Loma South. All of them were verified against their THREDDS realtime files.
+
+## Trend
+
+`src/trend.js` holds the maths, with no DOM: a rolling-median smoother,
+the direction over the next 6 h, the forecast's turning points (a zigzag
+filter that ignores wiggles smaller than the prominence) and the sparkline
+geometry. `TREND` in `src/config.js` sets the window and thresholds.
+
+- **Direction** compares the forecast with itself, from now to now + 6 h, so
+  the model's offset from the buoy cancels out. Hs counts as up or down past
+  the larger of 8 % and 0.1 m. Tp needs 1.5 s.
+- **Tp is quantized.** Buoy and model periods both jump between frequency
+  bins (11.1, 15.4, 16.7, 18.2 s …). Tp is smoothed over 5 h, drawn as steps,
+  and described by its first full step away from now, not by peaks.
+- **Tp follows swell.** Peak period drops to 5–7 s whenever local wind sea
+  briefly holds the most energy. The trend leaves out periods under 8 s, the
+  same floor as the plot, so those flips don't take over the sparkline or the
+  outlook. The card itself still shows the buoy's Tp.
+
+Each card shows:
+
+- **A sparkline.** The buoy's last 24 h is solid and the next 3 days of
+  forecast is dashed, with local-midnight ticks and a "now" line. Each day's
+  abbreviation sits centred under its stretch between the ticks; a partial
+  day at either end that's too narrow for it is left unlabelled. It has no
+  y-axis, and its y-range is at least 0.3 m (Hs) or 2 s (Tp), so small wiggles
+  stay small.
+- **An outlook.** The next forecast turning points as text, e.g. "↘ 3.9 ft
+  Tue 12p", then "↗ 5.3 ft Wed 6a". For Tp, it shows the model's
+  groundswell period now, then its first full step away from that, e.g.
+  "Groundswell 18.2 s", then "↘ 16.7 s Mon 6a". Calling it groundswell
+  explains why it can differ from the buoy's Tp on the card when wind sea is
+  on top. Each line has a dot at that point on the sparkline: filled for a
+  rise or peak, hollow for a drop or low. The groundswell line has no dot.
+- **A fallback.** Without a forecast, a single line says which way the buoy's
+  last few hours went, e.g. "↘ Dropping", and the sparkline shows the buoy
+  record only.
+
+In static mode, `scripts/fetch-data.mjs` also writes
+`data/<station>.forecast.json`, and the page trims it to the window.
 
 ## Tuning
 

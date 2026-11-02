@@ -51,3 +51,16 @@ export const SCALE_MAX = 'spectrum';
 // maximum above sets the band width: the smallest round step with 10 bands
 // covering it.
 export const STALE_AFTER_HOURS = 2;
+
+// ── Trend (height and period cards) ─────────────────────────────────────────
+// Observed: the last `pastHours` of the buoy record. Forecast: CDIP's
+// ECMWF-driven model at the buoy, up to `aheadHours` ahead. A change counts as
+// up/down when the forecast moves by more than the threshold over `arrowHours`
+// (Hs: the larger of hsRel × now and hsAbs metres; Tp: tpAbs seconds).
+// `minProminence` sets how far a forecast peak or low must stand out to count
+// as a turning point, in the same units.
+export const TREND = {
+  pastHours: 24, aheadHours: 72, arrowHours: 6,
+  hsRel: 0.08, hsAbs: 0.1, tpAbs: 1.5,
+  minProminence: { hs: 0.1, tp: 1.5 },
+};
